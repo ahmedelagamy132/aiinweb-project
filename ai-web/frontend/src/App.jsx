@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { post } from './lib/api';
+import { withRetry } from './lib/retry';
 
 // Demo UI that lets students type a message and see the backend echo it back.
 function App() {
@@ -12,10 +13,14 @@ function App() {
     setLoading(true); // Indicate work is in progress and disable the button.
     setError(''); // Clear prior errors before attempting a new request.
     try {
-      const json = await post('/echo', { msg }); // Call the FastAPI echo endpoint.
+      const json = await withRetry(
+        () => post('/echo', { msg }),
+        2,
+        500,
+      ); // Call the FastAPI echo endpoint with retries.
       setResponse(json.msg); // Update UI with the message returned by the server.
     } catch (err) {
-      setError(String(err)); // Surface the failure so students can debug issues.
+      setError('A temporary issue was encountered. Please try again.');
     } finally {
       setLoading(false); // Always release the loading state.
     }

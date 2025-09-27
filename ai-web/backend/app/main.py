@@ -6,7 +6,7 @@ Vite dev server can reach the API from a different origin while students test
 their work locally.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -17,6 +17,10 @@ app.add_middleware(
     allow_methods=["*"], # All methods of request are allowed 
     allow_headers=["*"],
 )
+
+
+# Track transient failure counts per client to simulate flaky behavior.
+_flaky_attempts: dict[str, int] = {}
 
 
 class EchoIn(BaseModel):
@@ -34,3 +38,19 @@ def health():
 def echo(payload: EchoIn):
     """Echo the provided message so students can verify request/response flows."""
     return {"msg": payload.msg}
+
+
+@app.post("/flaky-echo")
+def flaky_echo(payload: EchoIn, request: Request, failures: int = 1):
+    """Simulate transient failures before eventually echoing the payload."""
+
+    client_host = request.client.host if request.client else "unknown"
+    key = f"{client_host}:{failures}"
+    seen = _flaky_attempts.get(key, 0)
+
+    if seen < failures:
+        _flaky_attempts[key] = seen + 1
+        raise HTTPException(status_code=503, detail="Simulated transient failure")
+
+    _flaky_attempts[key] = 0
+    return {"msg": payload.msg, "attempts": seen + 1}
