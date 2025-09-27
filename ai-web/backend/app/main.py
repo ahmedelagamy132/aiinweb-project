@@ -10,11 +10,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-app = FastAPI()
+app = FastAPI() # Initialize the FastAPI
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Permit the local Vite dev server.
-    allow_methods=["*"],
+    allow_origins=["http://localhost:5173"],  # Permit the local Vite dev server (List to allow the frontend to use the backend resources)
+    allow_methods=["*"], # All methods of request are allowed 
     allow_headers=["*"],
 )
 
