@@ -4,8 +4,10 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.routers.agent import router as agent_router
 from app.routers.echo import router as echo_router
 from app.routers.gemini import router as gemini_router
+from app.routers.planner import router as planner_router
 
 # Load environment variables from a local .env file when present so the
 # application picks up credentials configured for the labs.
@@ -19,8 +21,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(agent_router)
 app.include_router(echo_router)
 app.include_router(gemini_router)
+app.include_router(planner_router)
 
 
 @app.get("/health")
