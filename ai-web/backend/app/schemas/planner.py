@@ -32,6 +32,15 @@ class PlanStep(BaseModel):
         return [item.strip() for item in value if item.strip()]
 
 
+
+class PlanRequest(BaseModel):
+    """Payload accepted from the UI when requesting a plan."""
+
+    goal: str = Field(..., min_length=3, max_length=160)
+    audience_role: str = Field(..., min_length=2, max_length=64)
+    audience_experience: Literal["beginner", "intermediate", "advanced"]
+    primary_risk: str | None = Field(default=None, max_length=160)
+
 class Plan(BaseModel):
     """Top-level plan returned to the frontend."""
 
@@ -52,15 +61,6 @@ class Plan(BaseModel):
                 raise ValueError("Step titles must be unique within a plan.")
             seen.add(step.title)
         return self
-
-
-class PlanRequest(BaseModel):
-    """Payload accepted from the UI when requesting a plan."""
-
-    goal: str = Field(..., min_length=3, max_length=160)
-    audience_role: str = Field(..., min_length=2, max_length=64)
-    audience_experience: Literal["beginner", "intermediate", "advanced"]
-    primary_risk: str | None = Field(default=None, max_length=160)
 
 
 class PlanValidationResult(BaseModel):
