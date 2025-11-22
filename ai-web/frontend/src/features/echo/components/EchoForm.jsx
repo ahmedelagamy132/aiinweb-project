@@ -11,6 +11,7 @@ export function EchoForm({
   loading,
   error,
   response,
+  history,
 }) {
   return (
     <section style={{ display: 'grid', gap: 16, maxWidth: 420 }}>
@@ -40,6 +41,17 @@ export function EchoForm({
           <pre>{response}</pre>
         </article>
       )}
+      <article>
+        <h2>Recent echo attempts</h2>
+        <p>Persistence is handled by Postgres + Alembic migrations.</p>
+        <ul style={{ display: 'grid', gap: 8, paddingInlineStart: 16 }}>
+          {history.map((row) => (
+            <li key={row.id}>
+              <strong>{row.msg}</strong> — failures: {row.failures}, attempts: {row.attempts}
+            </li>
+          ))}
+        </ul>
+      </article>
     </section>
   );
 }
@@ -51,4 +63,5 @@ EchoForm.propTypes = {
   loading: PropTypes.bool.isRequired,
   error: PropTypes.string.isRequired,
   response: PropTypes.string.isRequired,
+  history: PropTypes.arrayOf(PropTypes.object).isRequired,
 };

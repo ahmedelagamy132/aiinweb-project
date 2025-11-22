@@ -6,31 +6,28 @@ matches the separation of concerns demonstrated in the accompanying lab
 notebooks and gives instructors a concrete example to reference in class.
 """
 
-from dataclasses import dataclass
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models import EchoAttempt
 
 
 class EchoServiceError(RuntimeError):
     """Raised when the flaky echo service needs to signal a transient failure."""
 
 
-@dataclass
-class _FlakyState:
-    """Internal data structure to keep track of how many failures each client saw."""
-
-    attempts: int = 0
-
-
-# Module-level dictionary storing retry counts keyed by client identifier.
-_FLAKY_ATTEMPTS: dict[str, _FlakyState] = {}
-
-
-def get_echo_payload(message: str) -> dict[str, str]:
+def get_echo_payload(message: str, db: Session, client_key: str) -> dict[str, str]:
     """Return the provided message wrapped in a JSON-friendly structure."""
 
-    return {"msg": message}
+    attempt = EchoAttempt(client_key=client_key, failures=0, attempts=1, message=message)
+    db.add(attempt)
+    db.commit()
+    return {"msg": message, "id": attempt.id}
 
 
-def get_flaky_echo_payload(message: str, client_host: str, failures: int) -> dict[str, int | str]:
+def get_flaky_echo_payload(
+    message: str, client_host: str, failures: int, db: Session
+) -> dict[str, int | str]:
     """Return the echoed message, simulating transient errors on earlier attempts.
 
     Args:
@@ -45,13 +42,26 @@ def get_flaky_echo_payload(message: str, client_host: str, failures: int) -> dic
     """
 
     key = f"{client_host}:{failures}"
-    state = _FLAKY_ATTEMPTS.setdefault(key, _FlakyState())
+    result = db.execute(
+        select(EchoAttempt).where(EchoAttempt.client_key == key, EchoAttempt.failures == failures)
+    ).scalar_one_or_none()
 
-    if state.attempts < failures:
-        state.attempts += 1
+    if result is None:
+        result = EchoAttempt(client_key=key, failures=failures, attempts=0, message=message)
+        db.add(result)
+        db.commit()
+        db.refresh(result)
+
+    if result.attempts < failures:
+        result.attempts += 1
+        db.add(result)
+        db.commit()
         raise EchoServiceError("Simulated transient failure")
 
-    attempts = state.attempts + 1  # Count the successful request as an attempt.
-    _FLAKY_ATTEMPTS[key] = _FlakyState()  # Reset tracking for the next exercise run.
+    attempts = result.attempts + 1  # Count the successful request as an attempt.
+    result.attempts = 0
+    result.message = message
+    db.add(result)
+    db.commit()
 
     return {"msg": message, "attempts": attempts}
