@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Iterable, Sequence
 
+from pydantic import AnyUrl
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,10 +18,22 @@ def list_resources(db: Session) -> Sequence[Resource]:
     return db.execute(select(Resource).order_by(Resource.created_at.desc())).scalars().all()
 
 
-def create_resource(db: Session, *, title: str, description: str, url: str, difficulty: str) -> Resource:
+def create_resource(
+    db: Session,
+    *,
+    title: str,
+    description: str,
+    url: str | AnyUrl,
+    difficulty: str,
+) -> Resource:
     """Persist a new resource entry."""
 
-    record = Resource(title=title, description=description, url=url, difficulty=difficulty)
+    record = Resource(
+        title=title,
+        description=description,
+        url=str(url),
+        difficulty=difficulty,
+    )
     db.add(record)
     db.commit()
     db.refresh(record)

@@ -23,6 +23,8 @@ def get_resources(db: Session = Depends(get_db)) -> list[ResourceOut]:
 def post_resource(payload: ResourceCreate, db: Session = Depends(get_db)) -> ResourceOut:
     """Create a new resource entry and return it to the client."""
 
-    record = create_resource(db, **payload.model_dump())
+    # Use JSON mode to coerce pydantic types (e.g., HttpUrl) into plain strings for
+    # the SQLAlchemy model, preventing PostgreSQL adaptation errors.
+    record = create_resource(db, **payload.model_dump(mode="json"))
     return ResourceOut.model_validate(record)
 
