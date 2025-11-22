@@ -1,7 +1,7 @@
 """Initial migration creating persistence for echo, plans, resources, and RAG chunks.
 
 Revision ID: 20250212_initial
-Revises: 
+Revises:
 Create Date: 2025-02-12
 """
 
@@ -11,6 +11,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -21,6 +22,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # ---- echo_attempts ----
     op.create_table(
         "echo_attempts",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -31,8 +33,14 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_echo_attempts_client_key"), "echo_attempts", ["client_key"], unique=False)
+    op.create_index(
+        op.f("ix_echo_attempts_client_key"),
+        "echo_attempts",
+        ["client_key"],
+        unique=False,
+    )
 
+    # ---- plan_runs ----
     op.create_table(
         "plan_runs",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -42,11 +50,12 @@ def upgrade() -> None:
         sa.Column("primary_risk", sa.String(length=255), nullable=True),
         sa.Column("include_risks", sa.Boolean(), nullable=False),
         sa.Column("summary", sa.Text(), nullable=False),
-        sa.Column("plan", sa.dialects.postgresql.JSONB(), nullable=False),
+        sa.Column("plan", postgresql.JSONB(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
 
+    # ---- resources ----
     op.create_table(
         "resources",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -59,46 +68,62 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
 
+    # ---- document_chunks ----
     op.create_table(
         "document_chunks",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("slug", sa.String(length=120), nullable=False),
         sa.Column("source", sa.String(length=255), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
-        sa.Column("embedding", sa.dialects.postgresql.JSONB(), nullable=False),
+        sa.Column("embedding", postgresql.JSONB(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_document_chunks_slug"), "document_chunks", ["slug"], unique=False)
+    op.create_index(
+        op.f("ix_document_chunks_slug"),
+        "document_chunks",
+        ["slug"],
+        unique=False,
+    )
 
+    # ---- Seeding data ----
+    conn = op.get_bind()
+
+    # document_chunks seeds
     seed_data = [
         {
             "slug": "stack-overview",
             "source": "docs/stack",
-            "content": "Docker Compose runs Postgres, FastAPI, Vite, and Nginx. Migrations are applied via Alembic before the app starts.",
+            "content": "Docker Compose runs Postgres, FastAPI, Vite, and Nginx. "
+                       "Migrations are applied via Alembic before the app starts.",
         },
         {
             "slug": "rag-notes",
             "source": "docs/rag",
-            "content": "The chatbot retrieves markdown snippets from the repository, ranks them with a hashed embedding, and feeds the context into Gemini when configured.",
+            "content": "The chatbot retrieves markdown snippets from the repository, "
+                       "ranks them with a hashed embedding, and feeds the context into "
+                       "Gemini when configured.",
         },
         {
             "slug": "frontend",
             "source": "docs/frontend",
-            "content": "The React app consumes real API endpoints for echo retries, planner history, resources, and the chatbot UI.",
+            "content": "The React app consumes real API endpoints for echo retries, "
+                       "planner history, resources, and the chatbot UI.",
         },
     ]
-
-    conn = op.get_bind()
 
     for entry in seed_data:
         conn.execute(
             sa.text(
-                "INSERT INTO document_chunks (slug, source, content, embedding, created_at) "
-                "VALUES (:slug, :source, :content, '[]', now())"
-            ).bindparams(**entry)
+                """
+                INSERT INTO document_chunks (slug, source, content, embedding, created_at)
+                VALUES (:slug, :source, :content, '[]'::jsonb, now())
+                """
+            ),
+            entry,
         )
 
+    # resources seeds
     resource_seed = [
         {
             "title": "Alembic migrations guide",
@@ -119,12 +144,16 @@ def upgrade() -> None:
             "difficulty": "advanced",
         },
     ]
+
     for entry in resource_seed:
         conn.execute(
             sa.text(
-                "INSERT INTO resources (title, description, url, difficulty, created_at, updated_at) "
-                "VALUES (:title, :description, :url, :difficulty, now(), now())"
-            ).bindparams(**entry)
+                """
+                INSERT INTO resources (title, description, url, difficulty, created_at, updated_at)
+                VALUES (:title, :description, :url, :difficulty, now(), now())
+                """
+            ),
+            entry,
         )
 
 
@@ -135,4 +164,3 @@ def downgrade() -> None:
     op.drop_table("plan_runs")
     op.drop_index(op.f("ix_echo_attempts_client_key"), table_name="echo_attempts")
     op.drop_table("echo_attempts")
-
