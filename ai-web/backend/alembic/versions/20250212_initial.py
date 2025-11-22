@@ -96,8 +96,7 @@ def upgrade() -> None:
             sa.text(
                 "INSERT INTO document_chunks (slug, source, content, embedding, created_at) "
                 "VALUES (:slug, :source, :content, '[]', now())"
-            ),
-            entry,
+            ).bindparams(**entry)
         )
 
     resource_seed = [
@@ -125,8 +124,7 @@ def upgrade() -> None:
             sa.text(
                 "INSERT INTO resources (title, description, url, difficulty, created_at, updated_at) "
                 "VALUES (:title, :description, :url, :difficulty, now(), now())"
-            ),
-            entry,
+            ).bindparams(**entry)
         )
 
 
