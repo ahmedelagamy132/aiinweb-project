@@ -97,7 +97,7 @@ def upgrade() -> None:
                 "INSERT INTO document_chunks (slug, source, content, embedding, created_at) "
                 "VALUES (:slug, :source, :content, '[]', now())"
             ),
-            parameters=entry,
+            entry,
         )
 
     resource_seed = [
@@ -126,7 +126,7 @@ def upgrade() -> None:
                 "INSERT INTO resources (title, description, url, difficulty, created_at, updated_at) "
                 "VALUES (:title, :description, :url, :difficulty, now(), now())"
             ),
-            parameters=entry,
+            entry,
         )
 
 
