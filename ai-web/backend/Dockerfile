@@ -6,7 +6,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt \
+RUN echo "Installing backend requirements:" \
+    && cat requirements.txt \
+    && pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir alembic
 
 COPY app ./app
