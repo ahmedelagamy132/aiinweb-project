@@ -89,8 +89,10 @@ def upgrade() -> None:
         },
     ]
 
+    conn = op.get_bind()
+
     for entry in seed_data:
-        op.execute(
+        conn.execute(
             sa.text(
                 "INSERT INTO document_chunks (slug, source, content, embedding, created_at) "
                 "VALUES (:slug, :source, :content, '[]', now())"
@@ -119,7 +121,7 @@ def upgrade() -> None:
         },
     ]
     for entry in resource_seed:
-        op.execute(
+        conn.execute(
             sa.text(
                 "INSERT INTO resources (title, description, url, difficulty, created_at, updated_at) "
                 "VALUES (:title, :description, :url, :difficulty, now(), now())"
