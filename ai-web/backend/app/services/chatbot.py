@@ -39,9 +39,9 @@ def _build_prompt(message: str, contexts: list[RetrievedContext]) -> str:
     instructions = (
         "You are an assistant helping students navigate the AI in Web course. "
         "Use the provided context snippets when they are relevant. If the context "
-        "does not answer the question, respond with actionable guidance.""
+        "does not answer the question, respond with actionable guidance."
     )
-    return f"{instructions}\n\nContext:\n{context_block}\n\nStudent: {message}\nAssistant:""
+    return f"{instructions}\n\nContext:\n{context_block}\n\nStudent: {message}\nAssistant:"
 
 
 def run_chat(message: str, db: Session) -> ChatResult:
