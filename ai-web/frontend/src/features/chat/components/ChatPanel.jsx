@@ -6,30 +6,37 @@ export function ChatPanel({ messages, contexts, steps, pending, error, onSend })
 
   const contextList = useMemo(
     () => contexts?.map((ctx, index) => (
-      <li key={index}>
+      <li key={index} className="list-item">
         <strong>{ctx.source}</strong>
-        <p>{ctx.content}</p>
+        <p className="text-secondary">{ctx.content}</p>
       </li>
     )),
     [contexts],
   );
 
   return (
-    <section style={{ display: 'grid', gap: 12 }}>
-      <header>
+    <div>
+      <div className="card-header">
         <h2>Chatbot + RAG</h2>
         <p>Retrieves repository context and calls Gemini when available.</p>
-      </header>
+      </div>
 
-      <div style={{ display: 'grid', gap: 8, border: '1px solid #ddd', padding: 12, borderRadius: 8 }}>
+      <div className="chat-container">
         {messages.map((message, index) => (
-          <div key={index} style={{ textAlign: message.role === 'assistant' ? 'left' : 'right' }}>
+          <div 
+            key={index} 
+            className={`chat-message ${message.role === 'assistant' ? 'chat-message-assistant' : 'chat-message-user'}`}
+          >
             <strong>{message.role === 'assistant' ? 'Assistant' : 'You'}</strong>
             <p>{message.text}</p>
           </div>
         ))}
-        {pending && <p>Thinking…</p>}
-        {error && <p style={{ color: 'red' }}>{error}</p>}
+        {pending && (
+          <div className="chat-message chat-message-assistant">
+            <span className="loading">Thinking</span>
+          </div>
+        )}
+        {error && <div className="alert alert-error">{error}</div>}
       </div>
 
       <form
@@ -38,34 +45,40 @@ export function ChatPanel({ messages, contexts, steps, pending, error, onSend })
           onSend(draft);
           setDraft('');
         }}
-        style={{ display: 'grid', gap: 8 }}
+        className="form"
       >
-        <label htmlFor="chat">Ask a question</label>
-        <textarea
-          id="chat"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          rows={2}
-        />
+        <div className="form-group">
+          <label htmlFor="chat">Ask a question</label>
+          <textarea
+            id="chat"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Ask about deployments, migrations, or any technical topic..."
+            rows={2}
+          />
+        </div>
         <button type="submit" disabled={pending}>Send</button>
       </form>
 
-      <div>
+      <div className="content-box">
         <h3>Retrieved context</h3>
-        <ul style={{ display: 'grid', gap: 8, paddingInlineStart: 16 }}>
+        <ul className="list">
           {contextList}
         </ul>
       </div>
 
-      <div>
+      <div className="content-box">
         <h3>Agent steps</h3>
-        <ul style={{ display: 'grid', gap: 8, paddingInlineStart: 16 }}>
+        <ul className="list">
           {steps?.map((step, index) => (
-            <li key={index}>{step.name}: {step.detail}</li>
+            <li key={index} className="list-item">
+              <strong>{step.name}</strong>
+              <div className="text-secondary">{step.detail}</div>
+            </li>
           ))}
         </ul>
       </div>
-    </section>
+    </div>
   );
 }
 

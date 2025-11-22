@@ -14,45 +14,51 @@ export function EchoForm({
   history,
 }) {
   return (
-    <section style={{ display: 'grid', gap: 16, maxWidth: 420 }}>
-      <header>
-        <h1>Lab 2 — Echo with retries</h1>
-        <p>
+    <div>
+      <div className="mb-lg">
+        <p className="text-secondary">
           This form mirrors the curriculum&apos;s feature-folder layout. Submit a message to see
           how the frontend retries the flaky endpoint before succeeding.
         </p>
-      </header>
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 12 }}>
-        <label htmlFor="msg">Message to echo</label>
-        <input
-          id="msg"
-          value={msg}
-          onChange={(event) => setMsg(event.target.value)}
-          disabled={loading}
-        />
+      </div>
+      <form onSubmit={handleSubmit} className="form">
+        <div className="form-group">
+          <label htmlFor="msg">Message to echo</label>
+          <input
+            type="text"
+            id="msg"
+            value={msg}
+            onChange={(event) => setMsg(event.target.value)}
+            disabled={loading}
+            placeholder="Enter your message..."
+          />
+        </div>
         <button type="submit" disabled={loading}>
           {loading ? 'Sending…' : 'Send'}
         </button>
       </form>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <div className="alert alert-error">{error}</div>}
       {response && (
-        <article>
-          <h2>Server response</h2>
+        <div className="content-box">
+          <h3>Server response</h3>
           <pre>{response}</pre>
-        </article>
+        </div>
       )}
-      <article>
-        <h2>Recent echo attempts</h2>
-        <p>Persistence is handled by Postgres + Alembic migrations.</p>
-        <ul style={{ display: 'grid', gap: 8, paddingInlineStart: 16 }}>
+      <div className="content-box">
+        <h3>Recent echo attempts</h3>
+        <p className="text-secondary mb-md">Persistence is handled by Postgres + Alembic migrations.</p>
+        <ul className="list">
           {history.map((row) => (
-            <li key={row.id}>
-              <strong>{row.msg}</strong> — failures: {row.failures}, attempts: {row.attempts}
+            <li key={row.id} className="list-item">
+              <strong>{row.msg}</strong>
+              <div className="text-secondary">
+                Failures: {row.failures} • Attempts: {row.attempts}
+              </div>
             </li>
           ))}
         </ul>
-      </article>
-    </section>
+      </div>
+    </div>
   );
 }
 

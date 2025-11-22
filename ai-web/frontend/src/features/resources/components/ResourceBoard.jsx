@@ -2,59 +2,88 @@ import PropTypes from 'prop-types';
 
 export function ResourceBoard({ form, updateForm, submit, resources, loading, error }) {
   return (
-    <section style={{ display: 'grid', gap: 16 }}>
-      <header>
-        <h2>Course resources (DB-backed)</h2>
+    <div>
+      <div className="card-header">
+        <h2>Course Resources</h2>
         <p>Use the form to add a helpful link. Entries persist through Postgres + Alembic.</p>
-      </header>
+      </div>
 
-      <form onSubmit={submit} style={{ display: 'grid', gap: 8, maxWidth: 520 }}>
-        <label htmlFor="title">Title</label>
-        <input id="title" value={form.title} onChange={(e) => updateForm('title', e.target.value)} required />
+      <form onSubmit={submit} className="form">
+        <div className="form-group">
+          <label htmlFor="title">Title</label>
+          <input 
+            type="text"
+            id="title" 
+            value={form.title} 
+            onChange={(e) => updateForm('title', e.target.value)} 
+            placeholder="Enter resource title..."
+            required 
+          />
+        </div>
 
-        <label htmlFor="description">Description</label>
-        <textarea
-          id="description"
-          value={form.description}
-          onChange={(e) => updateForm('description', e.target.value)}
-          rows={3}
-          required
-        />
+        <div className="form-group">
+          <label htmlFor="description">Description</label>
+          <textarea
+            id="description"
+            value={form.description}
+            onChange={(e) => updateForm('description', e.target.value)}
+            placeholder="Describe the resource and why it's helpful..."
+            rows={3}
+            required
+          />
+        </div>
 
-        <label htmlFor="url">URL</label>
-        <input id="url" value={form.url} onChange={(e) => updateForm('url', e.target.value)} required />
+        <div className="form-group">
+          <label htmlFor="url">URL</label>
+          <input 
+            type="url"
+            id="url" 
+            value={form.url} 
+            onChange={(e) => updateForm('url', e.target.value)} 
+            placeholder="https://example.com"
+            required 
+          />
+        </div>
 
-        <label htmlFor="difficulty">Difficulty</label>
-        <select
-          id="difficulty"
-          value={form.difficulty}
-          onChange={(e) => updateForm('difficulty', e.target.value)}
-        >
-          <option value="beginner">Beginner</option>
-          <option value="intermediate">Intermediate</option>
-          <option value="advanced">Advanced</option>
-        </select>
+        <div className="form-group">
+          <label htmlFor="difficulty">Difficulty</label>
+          <select
+            id="difficulty"
+            value={form.difficulty}
+            onChange={(e) => updateForm('difficulty', e.target.value)}
+          >
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+          </select>
+        </div>
 
-        <button type="submit" disabled={loading}>{loading ? 'Saving…' : 'Save resource'}</button>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
+        <button type="submit" disabled={loading}>
+          {loading ? 'Saving…' : 'Save resource'}
+        </button>
+        {error && <div className="alert alert-error">{error}</div>}
       </form>
 
-      <div style={{ display: 'grid', gap: 8 }}>
+      <div className="content-box">
         <h3>Shared links</h3>
-        <ul style={{ display: 'grid', gap: 8, paddingInlineStart: 16 }}>
+        <ul className="list">
           {resources.map((resource) => (
-            <li key={resource.id}>
-              <div style={{ display: 'flex', gap: 8, flexDirection: 'column' }}>
-                <strong>{resource.title}</strong>
-                <span>{resource.description}</span>
-                <span>Difficulty: {resource.difficulty}</span>
-                <a href={resource.url} target="_blank" rel="noreferrer">{resource.url}</a>
+            <li key={resource.id} className="list-item">
+              <strong>{resource.title}</strong>
+              <p className="text-secondary">{resource.description}</p>
+              <div className="flex" style={{ alignItems: 'center', marginTop: '0.5rem' }}>
+                <span className={`badge badge-${resource.difficulty}`}>
+                  {resource.difficulty}
+                </span>
+                <a href={resource.url} target="_blank" rel="noreferrer">
+                  View Resource →
+                </a>
               </div>
             </li>
           ))}
         </ul>
       </div>
-    </section>
+    </div>
   );
 }
 

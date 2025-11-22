@@ -2,55 +2,88 @@ import PropTypes from 'prop-types';
 
 export function PlannerPanel({ payload, plan, history, loading, error, updateField, submit }) {
   return (
-    <section style={{ display: 'grid', gap: 12 }}>
-      <header>
-        <h2>Launch plan generator</h2>
+    <div>
+      <div className="card-header">
+        <h2>Launch Plan Generator</h2>
         <p>Calls the FastAPI planner endpoint and stores results in Postgres.</p>
-      </header>
+      </div>
 
-      <form onSubmit={submit} style={{ display: 'grid', gap: 8, maxWidth: 520 }}>
-        <label htmlFor="goal">Goal</label>
-        <input id="goal" value={payload.goal} onChange={(e) => updateField('goal', e.target.value)} />
+      <form onSubmit={submit} className="form">
+        <div className="form-group">
+          <label htmlFor="goal">Goal</label>
+          <input 
+            type="text"
+            id="goal" 
+            value={payload.goal} 
+            onChange={(e) => updateField('goal', e.target.value)} 
+            placeholder="e.g., Launch the upgraded stack"
+          />
+        </div>
 
-        <label htmlFor="role">Audience role</label>
-        <input id="role" value={payload.audience_role} onChange={(e) => updateField('audience_role', e.target.value)} />
+        <div className="form-group">
+          <label htmlFor="role">Audience role</label>
+          <input 
+            type="text"
+            id="role" 
+            value={payload.audience_role} 
+            onChange={(e) => updateField('audience_role', e.target.value)} 
+            placeholder="e.g., Instructor"
+          />
+        </div>
 
-        <label htmlFor="experience">Experience</label>
-        <select
-          id="experience"
-          value={payload.audience_experience}
-          onChange={(e) => updateField('audience_experience', e.target.value)}
-        >
-          <option value="beginner">Beginner</option>
-          <option value="intermediate">Intermediate</option>
-          <option value="advanced">Advanced</option>
-        </select>
+        <div className="form-group">
+          <label htmlFor="experience">Experience</label>
+          <select
+            id="experience"
+            value={payload.audience_experience}
+            onChange={(e) => updateField('audience_experience', e.target.value)}
+          >
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+          </select>
+        </div>
 
-        <label htmlFor="risk">Primary risk</label>
-        <input id="risk" value={payload.primary_risk} onChange={(e) => updateField('primary_risk', e.target.value)} />
+        <div className="form-group">
+          <label htmlFor="risk">Primary risk</label>
+          <input 
+            type="text"
+            id="risk" 
+            value={payload.primary_risk} 
+            onChange={(e) => updateField('primary_risk', e.target.value)} 
+            placeholder="e.g., Student laptops differ from container setup"
+          />
+        </div>
 
-        <button type="submit" disabled={loading}>{loading ? 'Generating…' : 'Generate plan'}</button>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
+        <button type="submit" disabled={loading}>
+          {loading ? 'Generating…' : 'Generate plan'}
+        </button>
+        {error && <div className="alert alert-error">{error}</div>}
       </form>
 
       {plan && (
-        <article style={{ border: '1px solid #ddd', padding: 12, borderRadius: 8 }}>
+        <div className="content-box">
           <h3>Latest plan</h3>
-          <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(plan, null, 2)}</pre>
-        </article>
+          <pre>{JSON.stringify(plan, null, 2)}</pre>
+        </div>
       )}
 
-      <article>
+      <div className="content-box">
         <h3>Recent plans</h3>
-        <ul style={{ display: 'grid', gap: 8, paddingInlineStart: 16 }}>
+        <ul className="list">
           {history.map((item) => (
-            <li key={item.id}>
-              <strong>{item.goal}</strong> — {item.audience_role} ({item.audience_experience})
+            <li key={item.id} className="list-item">
+              <strong>{item.goal}</strong>
+              <div className="text-secondary">
+                {item.audience_role} • <span className={`badge badge-${item.audience_experience}`}>
+                  {item.audience_experience}
+                </span>
+              </div>
             </li>
           ))}
         </ul>
-      </article>
-    </section>
+      </div>
+    </div>
   );
 }
 

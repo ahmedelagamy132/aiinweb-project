@@ -15,47 +15,50 @@ import PropTypes from 'prop-types';
  */
 export function LessonOutlineForm({ topic, setTopic, outline, loading, error, handleSubmit }) {
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 12 }}>
-      {/* Provide context so the user knows why the form exists. */}
-      <p>
+    <div>
+      <p className="text-secondary mb-lg">
         Generate a quick lesson outline powered by Gemini. Provide a topic, submit
         the form, and discuss the generated talking points with your class.
       </p>
 
-      {/* Controlled input: value comes from React state, edits go through setTopic. */}
-      <label style={{ display: 'grid', gap: 4 }}>
-        <span>Lesson topic</span>
-        <input
-          type="text"
-          value={topic}
-          onChange={(event) => setTopic(event.target.value)}
-          placeholder="e.g. Building resilient web APIs"
-          disabled={loading}
-          required
-        />
-      </label>
+      <form onSubmit={handleSubmit} className="form">
+        <div className="form-group">
+          <label htmlFor="topic">Lesson topic</label>
+          <input
+            type="text"
+            id="topic"
+            value={topic}
+            onChange={(event) => setTopic(event.target.value)}
+            placeholder="e.g. Building resilient web APIs"
+            disabled={loading}
+            required
+          />
+        </div>
 
-      {/* Disable the submit button while loading or when the field is empty. */}
-      <button type="submit" disabled={loading || !topic.trim()}>
-        {loading ? 'Generating outline…' : 'Generate outline'}
-      </button>
+        <button type="submit" disabled={loading || !topic.trim()}>
+          {loading ? 'Generating outline…' : 'Generate outline'}
+        </button>
 
-      {/* Surface backend failures inline so the user can take action. */}
-      {error && (
-        <p style={{ color: 'crimson' }}>
-          {error}. Confirm the backend has access to <code>GEMINI_API_KEY</code>.
-        </p>
-      )}
+        {error && (
+          <div className="alert alert-error">
+            {error}. Confirm the backend has access to <code>GEMINI_API_KEY</code>.
+          </div>
+        )}
 
-      {/* Render the outline when the request succeeds. */}
-      {outline.length > 0 && (
-        <ol>
-          {outline.map((item, index) => (
-            <li key={`${item}-${index}`}>{item}</li>
-          ))}
-        </ol>
-      )}
-    </form>
+        {outline.length > 0 && (
+          <div className="content-box">
+            <h3>Generated Outline</h3>
+            <ol style={{ paddingInlineStart: '1.5rem', display: 'grid', gap: '0.5rem' }}>
+              {outline.map((item, index) => (
+                <li key={`${item}-${index}`} style={{ paddingLeft: '0.5rem' }}>
+                  {item}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+      </form>
+    </div>
   );
 }
 
