@@ -4,6 +4,7 @@
 // feature folders under `src/features`. New demos should follow the same
 // pattern: create a hook for stateful logic and pass it into a presentational
 // component.
+import './App.css';
 import { EchoForm } from './features/echo/components/EchoForm';
 import { useEchoForm } from './features/echo/hooks/useEchoForm';
 import { LessonOutlineForm } from './features/gemini/components/LessonOutlineForm';
@@ -23,38 +24,43 @@ function App() {
   const chatbot = useChatbot();
 
   return (
-    <main style={{ padding: 24, display: 'grid', gap: 32 }}>
-      <header style={{ display: 'grid', gap: 8 }}>
+    <div className="app-container">
+      <header className="app-header animate-in">
         <h1>AI in Web Programming Demos</h1>
         <p>
-          FastAPI and React layers
-          evolve together. Each section mirrors the workflow documented in the
-          instructor guide.
+          FastAPI and React layers evolve together. Each section mirrors the workflow documented in the
+          instructor guide. Build modern, intelligent web applications with best practices.
         </p>
       </header>
 
-      <section style={{ display: 'grid', gap: 16 }}>
-        <h2>Retrying echo service</h2>
-        <EchoForm {...echoForm} />
-      </section>
+      <div className="grid">
+        <section className="card animate-in">
+          <div className="card-header">
+            <h2>Retrying Echo Service</h2>
+          </div>
+          <EchoForm {...echoForm} />
+        </section>
 
-      <section style={{ display: 'grid', gap: 16 }}>
-        <ResourceBoard {...resourceBoard} />
-      </section>
+        <section className="card animate-in">
+          <ResourceBoard {...resourceBoard} />
+        </section>
 
-      <section style={{ display: 'grid', gap: 16 }}>
-        <PlannerPanel {...planner} />
-      </section>
+        <section className="card animate-in">
+          <PlannerPanel {...planner} />
+        </section>
 
-      <section style={{ display: 'grid', gap: 16 }}>
-        <h2>Gemini lesson outline builder</h2>
-        <LessonOutlineForm {...lessonOutlineForm} />
-      </section>
+        <section className="card animate-in">
+          <div className="card-header">
+            <h2>Gemini Lesson Outline Builder</h2>
+          </div>
+          <LessonOutlineForm {...lessonOutlineForm} />
+        </section>
 
-      <section style={{ display: 'grid', gap: 16 }}>
-        <ChatPanel {...chatbot} onSend={chatbot.send} />
-      </section>
-    </main>
+        <section className="card animate-in">
+          <ChatPanel {...chatbot} onSend={chatbot.send} />
+        </section>
+      </div>
+    </div>
   );
 }
 
