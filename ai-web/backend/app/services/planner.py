@@ -102,7 +102,8 @@ def save_plan_run(db: Session, request: PlanRequest, plan: Plan) -> PlanRun:
         primary_risk=request.primary_risk,
         include_risks=True,
         summary=summary,
-        plan=plan.model_dump(),
+        # Ensure datetimes and other values are JSON-serializable for JSONB storage.
+        plan=plan.model_dump(mode="json"),
     )
     db.add(run)
     db.commit()
