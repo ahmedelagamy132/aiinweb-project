@@ -5,3 +5,6 @@ python-dotenv
 google-generativeai
 faiss-cpu
 numpy
+SQLAlchemy
+psycopg2-binary
+alembic
