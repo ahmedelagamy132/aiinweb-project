@@ -1,6 +1,8 @@
 // Resolve the backend base URL from env during dev/prod and fall back to the
 // FastAPI default when running the frontend directly via `npm run dev`.
-const BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const BASE =
+  import.meta.env.VITE_API_BASE ||
+  (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:8000');
 
 /**
  * POST JSON to the FastAPI backend.
@@ -51,6 +53,15 @@ export async function post(path, body) {
       error.detail = detail;
     }
     throw error;
+  }
+  return res.json();
+}
+
+export async function get(path) {
+  const res = await fetch(`${BASE}${path}`);
+  if (!res.ok) {
+    const message = await res.text();
+    throw new Error(message || `HTTP ${res.status}`);
   }
   return res.json();
 }

@@ -3,9 +3,9 @@
 // Lab 02 encourages students to colocate hooks with the feature they support. This
 // implementation demonstrates that pattern by keeping the request logic next to
 // the UI while exposing a tiny API that the component can consume.
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-import { post } from '../../../lib/api';
+import { get, post } from '../../../lib/api';
 import { withRetry } from '../../../lib/retry';
 
 const DEFAULT_FAILURES = 2; // Fail twice before succeeding so the retry flow is visible.
@@ -15,6 +15,20 @@ export function useEchoForm({ failures = DEFAULT_FAILURES } = {}) {
   const [response, setResponse] = useState(''); // Hold the JSON payload returned from the backend.
   const [loading, setLoading] = useState(false); // Indicate when the form is sending a request.
   const [error, setError] = useState(''); // Store a friendly message if every retry attempt fails.
+  const [history, setHistory] = useState([]);
+
+  const refreshHistory = useCallback(async () => {
+    try {
+      const rows = await get('/echo/history');
+      setHistory(rows);
+    } catch (err) {
+      console.error('Failed to load echo history', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshHistory();
+  }, [refreshHistory]);
 
   const handleSubmit = useCallback(
     async (event) => {
@@ -33,6 +47,7 @@ export function useEchoForm({ failures = DEFAULT_FAILURES } = {}) {
 
         // Present the structured JSON so students can see how many attempts were needed.
         setResponse(JSON.stringify(json, null, 2));
+        refreshHistory();
       } catch (err) {
         console.error('Echo request failed after retries', err); // Surface useful debugging info for the instructor console.
         setError('A temporary issue was encountered. Please try again.');
@@ -50,5 +65,7 @@ export function useEchoForm({ failures = DEFAULT_FAILURES } = {}) {
     loading,
     error,
     response,
+    history,
+    refreshHistory,
   };
 }
