@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy.orm import Session
+
 from pydantic import ValidationError
 
+from app.models import PlanRun
 from app.schemas.planner import Plan, PlanRequest, PlanValidationResult, PlanStep
 
 _DEFAULT_STEP_LIBRARY = [
@@ -84,6 +87,27 @@ def build_plan(request: PlanRequest) -> Plan:
         risks=risks,
     )
     return plan
+
+
+def save_plan_run(db: Session, request: PlanRequest, plan: Plan) -> PlanRun:
+    """Persist a generated plan so the UI can render historical data."""
+
+    summary = (
+        f"Goal: {request.goal} | Audience: {request.audience_role} ({request.audience_experience})"
+    )
+    run = PlanRun(
+        goal=request.goal,
+        audience_role=request.audience_role,
+        audience_experience=request.audience_experience,
+        primary_risk=request.primary_risk,
+        include_risks=True,
+        summary=summary,
+        plan=plan.model_dump(),
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return run
 
 
 def validate_plan_payload(payload: dict[str, Any]) -> PlanValidationResult:
