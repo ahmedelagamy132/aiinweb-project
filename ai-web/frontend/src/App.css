@@ -697,6 +697,10 @@ input[type="date"]:focus {
   padding: 0.1rem 0.4rem;
 }
 
+.badge-secondary {
+  background: var(--color-text-secondary);
+}
+
 /* Priority Badges */
 .priority-badge {
   display: inline-block;

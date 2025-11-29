@@ -258,11 +258,14 @@ def run_release_readiness_agent(
     used_gemini = gemini_insight is not None
 
     if used_gemini:
+        insight_preview = ""
+        if gemini_insight:
+            insight_preview = gemini_insight[:100] + "..." if len(gemini_insight) > 100 else gemini_insight
         tool_calls.append(
             AgentToolCall(
                 tool="gemini_insight_generation",
                 arguments={"model": os.getenv("GEMINI_MODEL", "gemini-2.0-flash")},
-                output_preview=gemini_insight[:100] + "..." if len(gemini_insight or "") > 100 else gemini_insight or "",
+                output_preview=insight_preview,
             )
         )
 

@@ -172,7 +172,14 @@ export function AgentPanel({
           {/* Gemini AI Insight */}
           {result.gemini_insight && (
             <div className="content-box gemini-insight">
-              <h3>✨ AI Insight {result.used_gemini && <span className="badge">Powered by Gemini</span>}</h3>
+              <h3>
+                ✨ AI Insight
+                {result.used_gemini ? (
+                  <span className="badge">Powered by Gemini</span>
+                ) : (
+                  <span className="badge badge-secondary">Offline</span>
+                )}
+              </h3>
               <p>{result.gemini_insight}</p>
             </div>
           )}
