@@ -73,3 +73,21 @@ class DocumentChunk(Base):
     embedding: Mapped[list[float]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
+
+class AgentRun(Base):
+    """Persist agent execution history for auditing and learning from past runs."""
+
+    __tablename__ = "agent_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    feature_slug: Mapped[str] = mapped_column(String(120), index=True)
+    audience_role: Mapped[str] = mapped_column(String(120))
+    audience_experience: Mapped[str] = mapped_column(String(32))
+    summary: Mapped[str] = mapped_column(Text)
+    gemini_insight: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recommended_actions: Mapped[Any] = mapped_column(JSONB)
+    tool_calls: Mapped[Any] = mapped_column(JSONB)
+    rag_contexts: Mapped[Any] = mapped_column(JSONB, default=list)
+    used_gemini: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
