@@ -30,14 +30,18 @@ target_metadata = Base.metadata
 
 
 def _get_database_url() -> str:
-    url = os.getenv("DATABASE_URL")
-    if not url:
-        raise RuntimeError(
-            "DATABASE_URL environment variable is not set. "
-            "In docker-compose it should be like: "
-            "postgresql+psycopg2://aiweb:aiweb@db:5432/aiweb"
-        )
-    return url
+    env_url = os.getenv("DATABASE_URL")
+    if env_url:
+        return env_url
+
+    ini_url = config.get_main_option("sqlalchemy.url")
+    if ini_url:
+        return ini_url
+
+    raise RuntimeError(
+        "No database URL configured. Set DATABASE_URL or "
+        "define sqlalchemy.url in alembic.ini."
+    )
 
 
 def run_migrations_offline() -> None:
