@@ -29,19 +29,32 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
-def _get_database_url() -> str:
-    url = os.getenv("DATABASE_URL")
-    if not url:
+def _assert_target_metadata() -> None:
+    if not target_metadata:
         raise RuntimeError(
-            "DATABASE_URL environment variable is not set. "
-            "In docker-compose it should be like: "
-            "postgresql+psycopg2://aiweb:aiweb@db:5432/aiweb"
+            "Alembic target_metadata is missing. Ensure models are imported and "
+            "Base.metadata is defined so autogenerate can run."
         )
-    return url
+
+
+def _get_database_url() -> str:
+    env_url = os.getenv("DATABASE_URL")
+    if env_url:
+        return env_url
+
+    ini_url = config.get_main_option("sqlalchemy.url")
+    if ini_url:
+        return ini_url
+
+    raise RuntimeError(
+        "No database URL configured. Set DATABASE_URL or "
+        "define sqlalchemy.url in alembic.ini."
+    )
 
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
+    _assert_target_metadata()
     url = _get_database_url()
 
     context.configure(
@@ -56,6 +69,7 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
+    _assert_target_metadata()
     url = _get_database_url()
 
     connectable = create_engine(url, poolclass=pool.NullPool)
