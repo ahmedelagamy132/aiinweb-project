@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 import os
+import sys
 from logging.config import fileConfig
+from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy import pool
 
 from alembic import context
+
+# Add the backend directory to the path so we can import app modules
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.database import Base  # noqa: E402
+from app import models  # noqa: E402, F401  # Import models to register them with Base
 
 # Alembic Config object
 config = context.config
@@ -17,8 +25,8 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# No autogenerate needed yet → metadata can be None
-target_metadata = None
+# Use Base.metadata for autogenerate support
+target_metadata = Base.metadata
 
 
 def _get_database_url() -> str:
