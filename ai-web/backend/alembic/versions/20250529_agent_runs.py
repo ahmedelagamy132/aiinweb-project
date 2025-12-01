@@ -49,6 +49,17 @@ def upgrade() -> None:
             ["feature_slug"],
             unique=False,
         )
+    else:
+        # Table exists, check if index needs to be created
+        indexes = inspector.get_indexes("agent_runs")
+        index_names = [idx["name"] for idx in indexes]
+        if "ix_agent_runs_feature_slug" not in index_names:
+            op.create_index(
+                op.f("ix_agent_runs_feature_slug"),
+                "agent_runs",
+                ["feature_slug"],
+                unique=False,
+            )
 
     # Seed feature-related document chunks for RAG to help the agent
     # Check if seed data already exists to make migration idempotent
@@ -100,6 +111,15 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(op.f("ix_agent_runs_feature_slug"), table_name="agent_runs")
-    op.drop_table("agent_runs")
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    existing_tables = inspector.get_table_names()
+
+    if "agent_runs" in existing_tables:
+        # Check if index exists before dropping
+        indexes = inspector.get_indexes("agent_runs")
+        index_names = [idx["name"] for idx in indexes]
+        if "ix_agent_runs_feature_slug" in index_names:
+            op.drop_index(op.f("ix_agent_runs_feature_slug"), table_name="agent_runs")
+        op.drop_table("agent_runs")
     # Note: We don't remove the seeded document_chunks as they may be used elsewhere
