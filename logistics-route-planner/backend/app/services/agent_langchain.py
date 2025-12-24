@@ -110,7 +110,7 @@ def run_route_validation_agent(
         # Tool 1: Check weather for start location
         from app.services.agent_tools import check_weather_conditions
         try:
-            weather_result = check_weather_conditions.run(route_request.start_location)
+            weather_result = check_weather_conditions.invoke({"location": route_request.start_location})
             tool_calls.append(
                 AgentToolCall(
                     tool="check_weather_conditions",
@@ -119,8 +119,10 @@ def run_route_validation_agent(
                 )
             )
             tool_results['weather'] = weather_result
+            print(f"[TOOL] Weather result: {weather_result[:500]}")
         except Exception as e:
             tool_results['weather'] = f"Weather unavailable: {e}"
+            print(f"[TOOL ERROR] Weather failed: {e}")
         
         # Tool 2: Calculate route metrics
         if len(route_request.stops) > 0:
@@ -128,11 +130,12 @@ def run_route_validation_agent(
             try:
                 route_data = {
                     "distance_km": len(route_request.stops) * 15,  # Estimate 15km per stop
-                    "num_stops": len(route_request.stops),
+                    "stops": len(route_request.stops),
                     "area_type": "urban",  # Could be inferred from location
                     "vehicle_type": "van"  # Could come from vehicle_id lookup
                 }
-                metrics_result = calculate_route_metrics.run(route_data)
+                print(f"[TOOL] Calling calculate_route_metrics with: {route_data}")
+                metrics_result = calculate_route_metrics.invoke({"route_data": route_data})
                 tool_calls.append(
                     AgentToolCall(
                         tool="calculate_route_metrics",
@@ -141,15 +144,18 @@ def run_route_validation_agent(
                     )
                 )
                 tool_results['metrics'] = metrics_result
+                print(f"[TOOL] Metrics result: {metrics_result[:500]}")
             except Exception as e:
                 tool_results['metrics'] = f"Calculation error: {e}"
+                print(f"[TOOL ERROR] Metrics failed: {e}")
         
         # Tool 3: Validate route timing (if task includes validation)
         if route_request.task in ["validate_route", "validate_and_recommend"]:
             from app.services.agent_tools import validate_route_timing
             try:
                 route_data_for_validation = route_request.model_dump()
-                timing_result = validate_route_timing.run(route_data_for_validation)
+                print(f"[TOOL] Calling validate_route_timing with: {json.dumps(route_data_for_validation, indent=2)}")
+                timing_result = validate_route_timing.invoke({"route_request": route_data_for_validation})
                 tool_calls.append(
                     AgentToolCall(
                         tool="validate_route_timing",
@@ -158,15 +164,17 @@ def run_route_validation_agent(
                     )
                 )
                 tool_results['timing_validation'] = timing_result
+                print(f"[TOOL] Timing validation result: {timing_result[:500]}")
             except Exception as e:
                 tool_results['timing_validation'] = f"Validation error: {e}"
+                print(f"[TOOL ERROR] Timing validation failed: {e}")
         
         # Tool 4: Optimize stop sequence (if task includes optimization)
         if route_request.task in ["optimize_route", "validate_and_recommend"]:
             from app.services.agent_tools import optimize_stop_sequence
             try:
                 route_data_for_optimization = route_request.model_dump()
-                optimization_result = optimize_stop_sequence.run(route_data_for_optimization)
+                optimization_result = optimize_stop_sequence.invoke({"route_request": route_data_for_optimization})
                 tool_calls.append(
                     AgentToolCall(
                         tool="optimize_stop_sequence",
@@ -186,10 +194,10 @@ def run_route_validation_agent(
             start_dt = datetime.fromisoformat(route_request.planned_start_time.replace('Z', '+00:00'))
             time_of_day = start_dt.strftime("%H:%M")
             
-            traffic_result = check_traffic_conditions.run(
-                location=route_request.start_location,
-                time_of_day=time_of_day
-            )
+            traffic_result = check_traffic_conditions.invoke({
+                "location": route_request.start_location,
+                "time_of_day": time_of_day
+            })
             tool_calls.append(
                 AgentToolCall(
                     tool="check_traffic_conditions",
