@@ -14,7 +14,6 @@ from datetime import date
 from typing import Any, Literal
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain.agents import AgentExecutor, create_tool_calling_agent
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -127,7 +126,7 @@ def run_route_readiness_agent(
     
     # Create RAG context first
     rag_contexts: list[RetrievedContext] = []
-    rag_context_str = ""
+    search_query = ""
     
     if db is not None:
         retriever = build_retriever(db)
@@ -135,86 +134,89 @@ def run_route_readiness_agent(
         if brief:
             search_query = f"{brief.name} {context.audience_role} delivery logistics"
             rag_contexts = retriever.search(search_query, k=3)
-            if rag_contexts:
-                rag_context_str = "\n\nRelevant Documentation:\n" + "\n".join([
-                    f"- ({ctx.source}) {ctx.content[:200]}..."
-                    for ctx in rag_contexts
-                ])
     
-    # Create agent prompt
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an expert logistics route readiness advisor helping teams prepare for route launches.
-
-You have access to multiple tools that provide information about:
-- Route details and specifications
-- Delivery windows and timelines
-- Support contacts and escalation channels
-- SLO (Service Level Objectives) requirements
-- Route metrics calculations
-- Weather impact assessments
-- Web search for latest logistics best practices
-- Wikipedia for logistics concepts
-
-Your task is to:
-1. Gather comprehensive information about the route using available tools
-2. Assess readiness for the launch date
-3. Identify risks and provide actionable recommendations
-4. Consider the audience's role and experience level
-
-Use the tools autonomously to gather all necessary information. Start by fetching route brief and delivery window.
-{rag_context}
-
-After gathering information, provide:
-- A strategic insight about route readiness
-- Specific, actionable recommendations with priorities"""),
-        ("human", """Please assess route readiness for:
-- Route: {route_slug}
-- Launch Date: {launch_date}
-- Audience Role: {audience_role} ({audience_experience} level)
-- Include Risk Analysis: {include_risks}
-
-Use your tools to gather comprehensive information and provide a detailed assessment."""),
-        ("placeholder", "{agent_scratchpad}"),
-    ])
-    
-    # Create agent
+    # Execute tools programmatically (simpler approach that works with any LangChain version)
     try:
-        agent = create_tool_calling_agent(llm, tools, prompt)
-        agent_executor = AgentExecutor(
-            agent=agent,
-            tools=tools,
-            verbose=True,
-            max_iterations=15,
-            handle_parsing_errors=True,
-            return_intermediate_steps=True,
-        )
-        
-        # Execute agent
-        result = agent_executor.invoke({
-            "route_slug": context.route_slug,
-            "launch_date": context.launch_date,
-            "audience_role": context.audience_role,
-            "audience_experience": context.audience_experience,
-            "include_risks": context.include_risks,
-            "rag_context": rag_context_str,
-        })
-        
-        # Extract output and tool calls
-        agent_output = result.get("output", "")
-        intermediate_steps = result.get("intermediate_steps", [])
-        
-        # Build tool calls trace
         tool_calls = []
-        for step in intermediate_steps:
-            if len(step) >= 2:
-                action, observation = step[0], step[1]
-                tool_calls.append(
-                    AgentToolCall(
-                        tool=action.tool if hasattr(action, 'tool') else str(action),
-                        arguments=action.tool_input if hasattr(action, 'tool_input') else {},
-                        output_preview=str(observation)[:200] + "..." if len(str(observation)) > 200 else str(observation),
-                    )
+        tool_results = {}
+        
+        # Tool 1: fetch_route_brief
+        from app.services.agent_tools import fetch_route_brief as fetch_brief_tool
+        try:
+            brief_result = fetch_brief_tool.run(context.route_slug)
+            tool_calls.append(
+                AgentToolCall(
+                    tool="fetch_route_brief",
+                    arguments={"route_slug": context.route_slug},
+                    output_preview=brief_result[:200] + "..." if len(brief_result) > 200 else brief_result,
                 )
+            )
+            tool_results['route_brief'] = brief_result
+        except Exception as e:
+            tool_results['route_brief'] = f"Error: {e}"
+        
+        # Tool 2: fetch_delivery_window
+        from app.services.agent_tools import fetch_delivery_window as fetch_window_tool
+        try:
+            window_result = fetch_window_tool.run(context.route_slug)
+            tool_calls.append(
+                AgentToolCall(
+                    tool="fetch_delivery_window",
+                    arguments={"route_slug": context.route_slug},
+                    output_preview=window_result[:200] + "..." if len(window_result) > 200 else window_result,
+                )
+            )
+            tool_results['delivery_window'] = window_result
+        except Exception as e:
+            tool_results['delivery_window'] = f"Error: {e}"
+        
+        # Tool 3: fetch_support_contacts
+        from app.services.agent_tools import fetch_support_contacts as fetch_contacts_tool
+        try:
+            contacts_result = fetch_contacts_tool.run(context.audience_role)
+            tool_calls.append(
+                AgentToolCall(
+                    tool="fetch_support_contacts",
+                    arguments={"audience_role": context.audience_role},
+                    output_preview=contacts_result[:200] + "..." if len(contacts_result) > 200 else contacts_result,
+                )
+            )
+            tool_results['support_contacts'] = contacts_result
+        except Exception as e:
+            tool_results['support_contacts'] = f"Error: {e}"
+        
+        # Tool 4: list_slo_watch_items
+        from app.services.agent_tools import list_slo_watch_items as fetch_slo_tool
+        try:
+            slo_result = fetch_slo_tool.run(context.route_slug)
+            tool_calls.append(
+                AgentToolCall(
+                    tool="list_slo_watch_items",
+                    arguments={"route_slug": context.route_slug},
+                    output_preview=slo_result[:200] + "..." if len(slo_result) > 200 else slo_result,
+                )
+            )
+            tool_results['slo_items'] = slo_result
+        except Exception as e:
+            tool_results['slo_items'] = f"Error: {e}"
+        
+        # Tool 5: Try DuckDuckGo web search (if available)
+        try:
+            from langchain_community.tools import DuckDuckGoSearchRun
+            search_tool = DuckDuckGoSearchRun()
+            search_query_text = f"{context.route_slug} delivery logistics best practices"
+            search_result = search_tool.run(search_query_text)
+            tool_calls.append(
+                AgentToolCall(
+                    tool="duckduckgo_search",
+                    arguments={"query": search_query_text},
+                    output_preview=search_result[:200] + "..." if len(search_result) > 200 else search_result,
+                )
+            )
+            tool_results['web_search'] = search_result
+        except Exception as e:
+            print(f"Web search unavailable: {e}")
+            # Don't add to tool calls if it failed
         
         # Add RAG tool call
         if rag_contexts:
@@ -226,8 +228,71 @@ Use your tools to gather comprehensive information and provide a detailed assess
                 )
             )
         
+        # Build context from tool results for LLM
+        tool_context = "\n\n".join([
+            f"=== {key.upper()} ===\n{value}"
+            for key, value in tool_results.items()
+        ])
+        
+        if rag_contexts:
+            rag_text = "\n".join([f"- ({ctx.source}) {ctx.content[:200]}..." for ctx in rag_contexts])
+            tool_context += f"\n\n=== RELATED DOCUMENTATION ===\n{rag_text}"
+        
+        # Create prompt
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are an expert logistics route readiness advisor.
+
+Based on the tool results below, provide:
+1. A brief strategic insight (2-3 sentences) about route readiness
+2. Three specific, actionable recommendations with priority levels (high/medium/low)
+
+Respond in this format:
+INSIGHT: <your strategic insight>
+RECOMMENDATION: <title>|<detail>|<priority>
+RECOMMENDATION: <title>|<detail>|<priority>
+RECOMMENDATION: <title>|<detail>|<priority>"""),
+            ("human", """Tool Results:
+{tool_context}
+
+User's Request:
+- Route: {route_slug}
+- Launch Date: {launch_date}
+- Audience Role: {audience_role} ({audience_experience} level)
+- Include Risk Analysis: {include_risks}
+
+Please provide your assessment.""")
+        ])
+        
+        # Invoke LLM
+        chain = prompt | llm
+        response = chain.invoke({
+            "tool_context": tool_context,
+            "route_slug": context.route_slug,
+            "launch_date": context.launch_date,
+            "audience_role": context.audience_role,
+            "audience_experience": context.audience_experience,
+            "include_risks": context.include_risks,
+        })
+        
+        # Extract text content from response
+        if hasattr(response, "content"):
+            agent_output = response.content
+        else:
+            agent_output = str(response)
+        
         # Parse agent output for recommendations
         recommendations = _parse_recommendations(agent_output, context)
+        
+        # Extract primary risk from SLO items for plan generation
+        import json
+        primary_risk = None
+        if 'slo_items' in tool_results:
+            try:
+                slo_data = json.loads(tool_results['slo_items'])
+                if 'slo_items' in slo_data and len(slo_data['slo_items']) > 0:
+                    primary_risk = slo_data['slo_items'][0]
+            except:
+                pass
         
         # Build summary
         brief = _ROUTE_BRIEFS.get(context.route_slug)
@@ -235,17 +300,17 @@ Use your tools to gather comprehensive information and provide a detailed assess
             summary = (
                 f"{brief.name} targets {brief.audience_role} personas. "
                 f"Launch date: {context.launch_date}. "
-                f"Agent used {len(tool_calls)} tools for assessment."
+                f"Agent used {len(tool_calls)} tools for comprehensive assessment."
             )
         else:
             summary = f"Route readiness assessment completed using {len(tool_calls)} tools."
         
-        # Generate plan using planner service
+        # Generate AI-powered plan using planner service (uses LLM)
         plan_request = RouteRequest(
-            goal=f"Launch {context.route_slug} successfully",
+            goal=f"Successfully launch {context.route_slug} route for {context.audience_role}",
             audience_role=context.audience_role,
             audience_experience=context.audience_experience,
-            primary_risk=None,
+            primary_risk=primary_risk if context.include_risks else None,
         )
         plan = build_route_plan(plan_request)
         

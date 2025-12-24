@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Bot, MapPin, Search, History, Package, Truck } from 'lucide-react';
+import { Bot, MapPin, Search, History, Package, Truck, MessageSquare } from 'lucide-react';
 import './NavBar.css';
 
 const TABS = [
   { key: 'agent', label: 'AI Agent', icon: Bot },
+  { key: 'chatbot', label: 'AI Chat', icon: MessageSquare },
   { key: 'planner', label: 'Planner', icon: MapPin },
   { key: 'search', label: 'Search Documents', icon: Search },
   { key: 'history', label: 'Recent Runs', icon: History },

@@ -13,6 +13,7 @@ import { useEchoForm } from './features/echo/hooks/useEchoForm';
 import { PlannerPanel } from './features/planner/components/PlannerPanel';
 import { usePlanner } from './features/planner/hooks/usePlanner';
 import { SearchPanel } from './features/search/components/SearchPanel';
+import { ChatbotPanel } from './features/chatbot/components/ChatbotPanel';
 import NavBar from './components/NavBar';
 import React, { useState } from 'react';
 import { Package, History, Truck } from 'lucide-react';
@@ -51,6 +52,12 @@ function App() {
         content = (
             <section className="card card-featured animate-in">
                 <SearchPanel />
+            </section>
+        );
+    } else if (activeTab === 'chatbot') {
+        content = (
+            <section className="card card-featured animate-in">
+                <ChatbotPanel />
             </section>
         );
     } else if (activeTab === 'history') {
