@@ -1,0 +1,31 @@
+# Fleet Management Guidelines
+
+## Vehicle Maintenance Scheduling
+Regular preventive maintenance reduces breakdowns and extends vehicle lifespan. Establish maintenance schedules based on mileage intervals: oil changes every 5,000-7,500 miles, tire rotations every 6,000-8,000 miles, and comprehensive inspections every 25,000 miles. Keep detailed maintenance logs for each vehicle.
+
+## Driver Assignment Optimization
+Match driver skills and experience with route complexity. New drivers should start with simpler suburban routes before progressing to challenging urban or long-haul assignments. Consider driver preferences, home locations, and familiarity with specific areas to improve efficiency and job satisfaction.
+
+## Fuel Management Best Practices
+Fuel costs represent 24% of total fleet operating expenses. Implement fuel cards with transaction monitoring to detect fraud, establish approved fuel stop networks offering discounts, train drivers on fuel-efficient driving techniques (smooth acceleration, optimal speed maintenance), and track fuel consumption per vehicle to identify inefficiencies.
+
+## GPS Fleet Tracking Benefits
+Real-time GPS tracking provides visibility into vehicle locations, enables accurate ETAs for customers, helps optimize routes dynamically based on traffic, monitors driver behavior for safety and compliance, and provides data for performance analysis and continuous improvement.
+
+## Compliance and Regulatory Requirements
+Commercial vehicle operations must comply with DOT regulations including regular vehicle inspections, proper cargo securement, weight restrictions, Hours of Service (HOS) rules, Electronic Logging Device (ELD) requirements, and driver qualification standards. Non-compliance results in fines and operational disruptions.
+
+## Cargo Securement Standards
+Proper cargo securement prevents shifting during transport, which causes accidents and damage. Use appropriate tie-down equipment rated for cargo weight, follow the "50% rule" (secure at least 50% of cargo length), inspect securement after first 50 miles, and recheck every 3 hours or 150 miles thereafter.
+
+## Driver Training and Development
+Comprehensive driver training programs should cover defensive driving techniques, customer service skills, proper vehicle inspection procedures, cargo handling and securement, navigation and route planning, and company policies. Ongoing training maintains high standards and addresses emerging challenges.
+
+## Emergency Response Procedures
+Establish clear protocols for handling emergencies including vehicle accidents (ensure safety, call emergency services, document scene, notify dispatch), breakdowns (move to safe location, contact roadside assistance, inform customers of delays), and cargo damage (document damage, secure remaining cargo, file reports).
+
+## Fleet Replacement Strategies
+Balance vehicle age, maintenance costs, and reliability when planning replacements. Typical commercial vehicle lifespans range from 250,000-500,000 miles or 8-12 years. Consider total cost of ownership including purchase price, fuel efficiency, maintenance costs, resale value, and downtime when evaluating replacement timing.
+
+## Telematics and Data Analytics
+Advanced telematics systems collect data on vehicle performance, driver behavior, fuel consumption, and maintenance needs. Analyze this data to identify trends, predict maintenance requirements, coach drivers on improvement areas, and optimize overall fleet performance.

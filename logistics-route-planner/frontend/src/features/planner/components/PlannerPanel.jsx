@@ -1,4 +1,5 @@
 import PropTypes from 'prop-types';
+import { MapPin, ClipboardList, AlertTriangle } from 'lucide-react';
 
 /**
  * PlannerPanel - Route planning form and results display.
@@ -20,7 +21,7 @@ export function PlannerPanel({
     return (
         <div>
             <div className="card-header">
-                <h2>📍 Route Planner</h2>
+                <h2><MapPin size={24} style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }} />Route Planner</h2>
                 <p>Generate structured route plans for your logistics operations.</p>
             </div>
 
@@ -88,7 +89,7 @@ export function PlannerPanel({
 
             {plan && (
                 <div className="content-box">
-                    <h3>📋 Generated Plan: {plan.goal}</h3>
+                    <h3><ClipboardList size={20} style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }} />Generated Plan: {plan.goal}</h3>
                     <p className="text-secondary">
                         For {plan.audience.role} ({plan.audience.experience_level}) •
                         Version {plan.version}
@@ -114,7 +115,7 @@ export function PlannerPanel({
 
                     {plan.risks?.length > 0 && (
                         <div style={{ marginTop: '1rem' }}>
-                            <h4>⚠️ Risks</h4>
+                            <h4><AlertTriangle size={18} style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }} />Risks</h4>
                             <ul className="list">
                                 {plan.risks.map((risk, index) => (
                                     <li key={index} className="list-item text-secondary">

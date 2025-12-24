@@ -36,6 +36,11 @@ try:
 except ImportError:
     genai = None
 
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
+
 
 class AgentServiceError(RuntimeError):
     """Raised when the agent cannot complete its workflow."""
@@ -173,6 +178,114 @@ RECOMMENDATION_2: <title>|<detail>|<priority: high/medium/low>"""
         return None, []
 
 
+def _generate_groq_insight(
+    brief: RouteBrief,
+    delivery_window: DeliveryWindow,
+    slo_items: list[str],
+    rag_contexts: list[RetrievedContext],
+    context: AgentRunContext,
+) -> tuple[str | None, list[AgentRecommendation]]:
+    """Use Groq to generate intelligent insights based on gathered context."""
+    settings = get_settings()
+    
+    print(f"[DEBUG] Groq API key configured: {bool(settings.groq_api_key)}")
+    print(f"[DEBUG] Groq module available: {Groq is not None}")
+    
+    if not settings.groq_api_key or Groq is None:
+        print("[DEBUG] Groq unavailable - returning empty insight")
+        return None, []
+
+    try:
+        print(f"[DEBUG] Calling Groq with model: {os.getenv('GROQ_MODEL', 'openai/gpt-oss-120b')}")
+        client = Groq(api_key=settings.groq_api_key)
+        model_name = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+
+        context_parts = [
+            f"Route: {brief.name}",
+            f"Summary: {brief.summary}",
+            f"Target Audience: {brief.audience_role} ({brief.audience_experience})",
+            f"Success Metric: {brief.success_metric}",
+            f"Delivery Window: {delivery_window.window_start} to {delivery_window.window_end}",
+            f"Environment: {delivery_window.environment}",
+            f"Freeze Required: {delivery_window.freeze_required}",
+        ]
+
+        if slo_items:
+            context_parts.append(f"SLO Watch Items: {', '.join(slo_items)}")
+
+        if rag_contexts:
+            rag_text = "\n".join([f"- ({ctx.source}) {ctx.content}" for ctx in rag_contexts])
+            context_parts.append(f"Related Documentation:\n{rag_text}")
+
+        full_context = "\n".join(context_parts)
+
+        prompt = f"""You are a logistics route readiness advisor helping teams prepare for route launches.
+Based on the following context, provide:
+1. A brief strategic insight (2-3 sentences) about the route readiness
+2. Two specific AI-generated recommendations with priority levels
+
+Context:
+{full_context}
+
+User's Launch Date: {context.launch_date}
+Include Risk Analysis: {context.include_risks}
+
+Respond in this exact format:
+INSIGHT: <your strategic insight here>
+RECOMMENDATION_1: <title>|<detail>|<priority: high/medium/low>
+RECOMMENDATION_2: <title>|<detail>|<priority: high/medium/low>"""
+
+        # Stream and aggregate content for simplicity
+        completion = client.chat.completions.create(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=1,
+            max_completion_tokens=2048,
+            top_p=1,
+            reasoning_effort="medium",
+            stream=True,
+            stop=None,
+        )
+
+        response_text = ""
+        for chunk in completion:
+            delta = getattr(chunk.choices[0], "delta", None)
+            if delta and getattr(delta, "content", None):
+                response_text += delta.content
+        response_text = response_text.strip()
+        
+        print(f"[DEBUG] Groq response received ({len(response_text)} chars): {response_text[:100]}...")
+
+        insight = ""
+        ai_recommendations: list[AgentRecommendation] = []
+
+        for line in response_text.split("\n"):
+            line = line.strip()
+            if line.startswith("INSIGHT:"):
+                insight = line[8:].strip()
+            elif line.startswith("RECOMMENDATION_"):
+                parts = line.split(":", 1)
+                if len(parts) > 1:
+                    rec_parts = parts[1].strip().split("|")
+                    if len(rec_parts) >= 3:
+                        priority = rec_parts[2].strip().lower()
+                        if priority not in ("high", "medium", "low"):
+                            priority = "medium"
+                        ai_recommendations.append(
+                            AgentRecommendation(
+                                title=f"[AI] {rec_parts[0].strip()}",
+                                detail=rec_parts[1].strip(),
+                                priority=priority,
+                            )
+                        )
+
+        return insight if insight else None, ai_recommendations
+
+    except Exception as exc:
+        print(f"Groq insight generation failed: {exc}")
+        return None, []
+
+
 def run_route_readiness_agent(
     context: AgentRunContext,
     db: Session | None = None,
@@ -240,13 +353,32 @@ def run_route_readiness_agent(
                 )
             )
 
-    # Generate Gemini insight if available
-    gemini_insight, ai_recommendations = _generate_gemini_insight(
+    # Generate Groq or Gemini insight if available
+    groq_insight, ai_recommendations = _generate_groq_insight(
         brief, delivery_window, slo_watch_items, rag_contexts, context
     )
-    used_gemini = gemini_insight is not None
+    used_groq = groq_insight is not None
 
-    if used_gemini:
+    gemini_insight: str | None = None
+    used_gemini = False
+    if not used_groq:
+        gemini_insight, ai_recommendations = _generate_gemini_insight(
+            brief, delivery_window, slo_watch_items, rag_contexts, context
+        )
+        used_gemini = gemini_insight is not None
+
+    if used_groq:
+        insight_preview = ""
+        if groq_insight:
+            insight_preview = groq_insight[:100] + "..." if len(groq_insight) > 100 else groq_insight
+        tool_calls.append(
+            AgentToolCall(
+                tool="groq_insight_generation",
+                arguments={"model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")},
+                output_preview=insight_preview,
+            )
+        )
+    elif used_gemini:
         insight_preview = ""
         if gemini_insight:
             insight_preview = gemini_insight[:100] + "..." if len(gemini_insight) > 100 else gemini_insight
@@ -326,12 +458,12 @@ def run_route_readiness_agent(
 
     result = AgentRunResult(
         summary=summary,
-        gemini_insight=gemini_insight,
+        gemini_insight=(groq_insight if used_groq else gemini_insight if used_gemini else None),
         recommended_actions=recommended_actions,
         plan=plan,
         tool_calls=tool_calls,
         rag_contexts=rag_context_response,
-        used_gemini=used_gemini,
+        used_gemini=used_gemini or False,
     )
 
     # Persist agent run to database for auditing

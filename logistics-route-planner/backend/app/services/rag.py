@@ -1,35 +1,35 @@
-"""Simple retrieval helper backed by FAISS and hashed bag-of-words embeddings."""
+"""Simple retrieval helper backed by FAISS and SentenceTransformers embeddings."""
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Sequence
 
 import faiss  # type: ignore
 import numpy as np
+from sentence_transformers import SentenceTransformer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import DocumentChunk
 
-EMBED_DIM = 256
+# Use a lightweight but effective model for embeddings
+EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+EMBED_DIM = 384  # Dimension for all-MiniLM-L6-v2 model
 
 
-def _tokenize(text: str) -> list[str]:
-    return re.findall(r"\b\w+\b", text.lower())
+@lru_cache(maxsize=1)
+def _get_embedding_model() -> SentenceTransformer:
+    """Load the SentenceTransformer model once and cache it."""
+    return SentenceTransformer(EMBEDDING_MODEL_NAME)
 
 
 def embed_text(text: str) -> np.ndarray:
-    """Create a deterministic hashed embedding without external dependencies."""
-    vector = np.zeros(EMBED_DIM, dtype="float32")
-    for token in _tokenize(text):
-        vector[hash(token) % EMBED_DIM] += 1.0
-    norm = np.linalg.norm(vector)
-    if norm:
-        vector /= norm
-    return vector
+    """Create a semantic embedding using SentenceTransformers."""
+    model = _get_embedding_model()
+    embedding = model.encode(text, convert_to_numpy=True, show_progress_bar=False)
+    return embedding.astype("float32")
 
 
 @dataclass

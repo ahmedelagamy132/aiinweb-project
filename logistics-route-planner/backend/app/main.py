@@ -1,6 +1,14 @@
 """FastAPI application entry point for the Logistics Route Planner."""
 
+# Load .env FIRST before any other imports to ensure env vars are available
+import os
+from pathlib import Path
 from dotenv import load_dotenv
+
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
+# Now import everything else
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -10,9 +18,6 @@ from app.routers.agent import router as agent_router
 from app.routers.echo import router as echo_router
 from app.routers.gemini import router as gemini_router
 from app.routers.planner import router as planner_router
-
-# Load environment variables from a local .env file when present
-load_dotenv()
 
 settings = get_settings()
 Base.metadata.create_all(bind=engine)

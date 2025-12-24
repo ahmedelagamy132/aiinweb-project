@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import PropTypes from 'prop-types';
+import { Bot, Sparkles, Target, Wrench, BookOpen, FileText } from 'lucide-react';
 
 /**
  * AgentPanel - A comprehensive UI for the route readiness agent.
@@ -74,7 +75,7 @@ export function AgentPanel({
     return (
         <div>
             <div className="card-header">
-                <h2>🤖 Route Readiness Agent</h2>
+                <h2><Bot size={24} style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }} />Route Readiness Agent</h2>
                 <p>
                     AI-powered route assessment using Gemini and RAG retrieval.
                     Select a route and run the agent to get intelligent recommendations.
@@ -173,7 +174,8 @@ export function AgentPanel({
                     {result.gemini_insight && (
                         <div className="content-box gemini-insight">
                             <h3>
-                                ✨ AI Insight
+                                <Sparkles size={20} style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }} />
+                                AI Insight
                                 {result.used_gemini ? (
                                     <span className="badge">Powered by Gemini</span>
                                 ) : (
@@ -186,20 +188,20 @@ export function AgentPanel({
 
                     {/* Recommendations */}
                     <div className="content-box">
-                        <h3>🎯 Recommendations ({result.recommended_actions?.length || 0})</h3>
+                        <h3><Target size={20} style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }} />Recommendations ({result.recommended_actions?.length || 0})</h3>
                         <ul className="list recommendations-list">{recommendationsList}</ul>
                     </div>
 
                     {/* Tool Calls - Transparency */}
                     <div className="content-box">
-                        <h3>🔧 Tool Calls</h3>
+                        <h3><Wrench size={20} style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }} />Tool Calls</h3>
                         <ul className="list tool-calls-list">{toolCallsList}</ul>
                     </div>
 
                     {/* RAG Contexts */}
                     {result.rag_contexts?.length > 0 && (
                         <div className="content-box">
-                            <h3>📚 Retrieved Context (RAG)</h3>
+                            <h3><BookOpen size={20} style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }} />Retrieved Context (RAG)</h3>
                             <ul className="list">{ragContextsList}</ul>
                         </div>
                     )}
@@ -207,7 +209,7 @@ export function AgentPanel({
                     {/* Plan Steps Preview */}
                     {result.plan?.steps?.length > 0 && (
                         <div className="content-box">
-                            <h3>📝 Generated Plan ({result.plan.steps.length} steps)</h3>
+                            <h3><FileText size={20} style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }} />Generated Plan ({result.plan.steps.length} steps)</h3>
                             <ul className="list">
                                 {result.plan.steps.slice(0, 3).map((step, index) => (
                                     <li key={index} className="list-item">
@@ -223,25 +225,6 @@ export function AgentPanel({
                             </ul>
                         </div>
                     )}
-                </div>
-            )}
-
-            {/* History Section */}
-            {history.length > 0 && (
-                <div className="content-box">
-                    <h3>📜 Recent Runs</h3>
-                    <ul className="list history-list">
-                        {history.map((run) => (
-                            <li key={run.id} className="list-item">
-                                <div className="history-item-header">
-                                    <strong>{run.route_slug}</strong>
-                                    <small>{new Date(run.created_at).toLocaleString()}</small>
-                                </div>
-                                <p className="text-secondary">{run.summary}</p>
-                                {run.used_gemini && <span className="badge badge-small">AI Enhanced</span>}
-                            </li>
-                        ))}
-                    </ul>
                 </div>
             )}
         </div>

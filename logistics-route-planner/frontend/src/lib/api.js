@@ -1,7 +1,5 @@
-// Resolve the backend base URL from env during dev/prod
-const BASE =
-    import.meta.env.VITE_API_BASE ||
-    (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:8000');
+// Use relative paths so it works with any domain (localhost, Codespaces, etc.)
+const BASE = '/api';
 
 /**
  * POST JSON to the FastAPI backend.

@@ -1,7 +1,7 @@
 """Agent endpoints that power the route readiness workflow.
 
-This router demonstrates a production-grade agent API with:
-- Gemini-powered AI insights for route recommendations
+This router uses LangChain-based agent implementation with:
+- Gemini/Groq-powered AI insights for route recommendations
 - FAISS-based RAG for retrieving relevant documentation
 - Database persistence for auditing and learning from past runs
 - Historical data access for reviewing previous agent executions
@@ -9,6 +9,7 @@ This router demonstrates a production-grade agent API with:
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -16,13 +17,27 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.services.agent import (
-    AgentRunContext,
-    AgentRunResult,
-    AgentServiceError,
-    get_agent_history,
-    run_route_readiness_agent,
-)
+from app.services.rag import build_retriever
+
+# Use LangChain agent by default, fallback to original if needed
+USE_LANGCHAIN = os.getenv("USE_LANGCHAIN_AGENT", "true").lower() == "true"
+
+if USE_LANGCHAIN:
+    from app.services.agent_langchain import (
+        AgentRunContext,
+        AgentRunResult,
+        AgentServiceError,
+        get_agent_history,
+        run_route_readiness_agent,
+    )
+else:
+    from app.services.agent import (
+        AgentRunContext,
+        AgentRunResult,
+        AgentServiceError,
+        get_agent_history,
+        run_route_readiness_agent,
+    )
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -116,3 +131,51 @@ def list_available_routes() -> dict[str, Any]:
         })
 
     return {"routes": routes, "total": len(routes)}
+
+
+class SearchResult(BaseModel):
+    """Single document search result."""
+    content: str
+    source: str
+    score: float
+
+
+class SearchResponse(BaseModel):
+    """Response containing search results."""
+    results: list[SearchResult]
+    query: str
+    total: int
+
+
+@router.get("/search", response_model=SearchResponse)
+def search_documents(
+    query: str = Query(..., description="Search query for semantic retrieval"),
+    k: int = Query(5, ge=1, le=20, description="Number of results to return"),
+    db: Session = Depends(get_db),
+) -> SearchResponse:
+    """Search the knowledge base using semantic similarity.
+    
+    This endpoint allows direct access to the RAG system for exploring
+    logistics documentation, best practices, and operational guidelines.
+    """
+    if not query.strip():
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+    
+    retriever = build_retriever(db)
+    docs = retriever.search(query, k=k)
+    
+    results = [
+        SearchResult(
+            content=doc.content,
+            source=doc.source,
+            score=round(doc.score, 4)
+        )
+        for doc in docs
+    ]
+    
+    return SearchResponse(
+        results=results,
+        query=query,
+        total=len(results)
+    )
+

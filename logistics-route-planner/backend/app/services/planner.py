@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.models import RouteRun
 from app.schemas.planner import (
     RouteAudience,
@@ -16,10 +18,168 @@ from app.schemas.planner import (
     RouteValidationResult,
 )
 
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
+
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
+
+
+def _generate_ai_plan(request: RouteRequest) -> RoutePlan | None:
+    """Use LLM to generate route plan dynamically."""
+    settings = get_settings()
+    
+    # Try Groq first
+    if settings.groq_api_key and Groq is not None:
+        try:
+            client = Groq(api_key=settings.groq_api_key)
+            model_name = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+            
+            prompt = f"""You are a logistics route planning expert. Generate a detailed route plan with specific steps.
+
+Request:
+- Goal: {request.goal}
+- Audience Role: {request.audience_role}
+- Experience Level: {request.audience_experience}
+- Primary Risk: {request.primary_risk or "None specified"}
+
+Generate a JSON object with this EXACT structure:
+{{
+  "steps": [
+    {{
+      "title": "Step Title",
+      "description": "Detailed description of what to do",
+      "owner": "Role responsible",
+      "duration_minutes": 30,
+      "acceptance_criteria": ["Criterion 1", "Criterion 2"]
+    }}
+  ],
+  "risks": ["Risk 1", "Risk 2", "Risk 3"]
+}}
+
+Generate 4-6 relevant steps appropriate for {request.audience_experience} experience level.
+Include specific logistics steps like: route assessment, vehicle selection, optimization, driver briefing, customer notification, dispatch execution.
+Make risks specific to the goal and primary risk mentioned.
+Return ONLY the JSON, no other text."""
+
+            completion = client.chat.completions.create(
+                model=model_name,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_completion_tokens=2048,
+            )
+            
+            response_text = completion.choices[0].message.content.strip()
+            
+            # Extract JSON if wrapped in markdown code blocks
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0].strip()
+            
+            import json
+            plan_data = json.loads(response_text)
+            
+            # Build RoutePlan from LLM response
+            steps = [RouteStep(**step) for step in plan_data["steps"]]
+            risks = plan_data.get("risks", [])
+            
+            return RoutePlan(
+                goal=request.goal,
+                audience=RouteAudience(
+                    role=request.audience_role,
+                    experience_level=request.audience_experience,
+                ),
+                created_at=datetime.utcnow(),
+                steps=steps,
+                risks=risks,
+            )
+        except Exception as exc:
+            print(f"Groq plan generation failed: {exc}")
+    
+    # Try Gemini fallback
+    if settings.gemini_api_key and genai is not None:
+        try:
+            genai.configure(api_key=settings.gemini_api_key)
+            model = genai.GenerativeModel(os.getenv("GEMINI_MODEL", "gemini-2.0-flash"))
+            
+            prompt = f"""You are a logistics route planning expert. Generate a detailed route plan with specific steps.
+
+Request:
+- Goal: {request.goal}
+- Audience Role: {request.audience_role}
+- Experience Level: {request.audience_experience}
+- Primary Risk: {request.primary_risk or "None specified"}
+
+Generate a JSON object with this EXACT structure:
+{{
+  "steps": [
+    {{
+      "title": "Step Title",
+      "description": "Detailed description of what to do",
+      "owner": "Role responsible",
+      "duration_minutes": 30,
+      "acceptance_criteria": ["Criterion 1", "Criterion 2"]
+    }}
+  ],
+  "risks": ["Risk 1", "Risk 2", "Risk 3"]
+}}
+
+Generate 4-6 relevant steps appropriate for {request.audience_experience} experience level.
+Include specific logistics steps like: route assessment, vehicle selection, optimization, driver briefing, customer notification, dispatch execution.
+Make risks specific to the goal and primary risk mentioned.
+Return ONLY the JSON, no other text."""
+
+            response = model.generate_content(prompt)
+            response_text = getattr(response, "text", "").strip()
+            
+            # Extract JSON if wrapped in markdown code blocks
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0].strip()
+            
+            import json
+            plan_data = json.loads(response_text)
+            
+            # Build RoutePlan from LLM response
+            steps = [RouteStep(**step) for step in plan_data["steps"]]
+            risks = plan_data.get("risks", [])
+            
+            return RoutePlan(
+                goal=request.goal,
+                audience=RouteAudience(
+                    role=request.audience_role,
+                    experience_level=request.audience_experience,
+                ),
+                created_at=datetime.utcnow(),
+                steps=steps,
+                risks=risks,
+            )
+        except Exception as exc:
+            print(f"Gemini plan generation failed: {exc}")
+    
+    return None
+
 
 def build_route_plan(request: RouteRequest) -> RoutePlan:
-    """Generate a structured route plan based on the request parameters."""
-
+    """Generate a structured route plan based on the request parameters.
+    
+    Now uses LLM (Groq/Gemini) for dynamic plan generation with fallback to rule-based templates.
+    """
+    
+    # Try AI-based generation first
+    ai_plan = _generate_ai_plan(request)
+    if ai_plan:
+        return ai_plan
+    
+    # Fallback to rule-based template generation if AI fails or unavailable
+    print("⚠️ LLM unavailable, using rule-based fallback template")
+    
     # Base steps for all experience levels
     steps = [
         RouteStep(

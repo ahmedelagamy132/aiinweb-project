@@ -54,7 +54,7 @@ export function useAgent() {
 
     useEffect(() => {
         loadHistory();
-    }, [loadHistory]);
+    }, []);
 
     const runAgent = useCallback(async () => {
         if (!selectedRoute) {
