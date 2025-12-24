@@ -1,19 +1,20 @@
-"""LangChain-based route validation agent with real tools.
+"""LangChain-based agent service with real tools and AgentExecutor.
 
-This module implements route validation using:
-- Real tools: weather API, route calculations, optimization, traffic analysis
-- LLM-powered validation and recommendations
+This module implements a powerful AI agent using:
+- Real LangChain tools (not just function calls)
+- AgentExecutor for autonomous tool usage
+- Multiple tool types: internal logistics tools + external research tools
 - RAG integration for knowledge base access
 """
 
 from __future__ import annotations
 
-import json
 import os
-from typing import Any
+from datetime import date
+from typing import Any, Literal
 
 from langchain_core.prompts import ChatPromptTemplate
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -92,121 +93,109 @@ def run_route_validation_agent(
     # Get LLM
     llm = _get_llm()
     
-    # Get all available real tools
+    # Get all available tools
     tools = get_all_tools()
     
-    # Create RAG context
+    # Create RAG context first
     rag_contexts: list[RetrievedContext] = []
+    search_query = ""
+    
     if db is not None:
         retriever = build_retriever(db)
-        search_query = f"route planning delivery logistics {route_request.task}"
-        rag_contexts = retriever.search(search_query, k=3)
+        brief = _ROUTE_BRIEFS.get(context.route_slug)
+        if brief:
+            search_query = f"{brief.name} {context.audience_role} delivery logistics"
+            rag_contexts = retriever.search(search_query, k=3)
     
-    # Execute real tools based on task
+    # Execute tools programmatically (simpler approach that works with any LangChain version)
     try:
         tool_calls = []
         tool_results = {}
         
-        # Tool 1: Check weather for start location
-        from app.services.agent_tools import check_weather_conditions
+        # Tool 1: fetch_route_brief
+        from app.services.agent_tools import fetch_route_brief as fetch_brief_tool
         try:
-            weather_result = check_weather_conditions.run(route_request.start_location)
+            brief_result = fetch_brief_tool.run(context.route_slug)
             tool_calls.append(
                 AgentToolCall(
-                    tool="check_weather_conditions",
-                    arguments={"location": route_request.start_location},
-                    output_preview=weather_result[:200] + "..." if len(weather_result) > 200 else weather_result,
+                    tool="fetch_route_brief",
+                    arguments={"route_slug": context.route_slug},
+                    output_preview=brief_result[:200] + "..." if len(brief_result) > 200 else brief_result,
                 )
             )
-            tool_results['weather'] = weather_result
+            tool_results['route_brief'] = brief_result
         except Exception as e:
-            tool_results['weather'] = f"Weather unavailable: {e}"
+            tool_results['route_brief'] = f"Error: {e}"
         
-        # Tool 2: Calculate route metrics
-        if len(route_request.stops) > 0:
-            from app.services.agent_tools import calculate_route_metrics
-            try:
-                route_data = {
-                    "distance_km": len(route_request.stops) * 15,  # Estimate 15km per stop
-                    "num_stops": len(route_request.stops),
-                    "area_type": "urban",  # Could be inferred from location
-                    "vehicle_type": "van"  # Could come from vehicle_id lookup
-                }
-                metrics_result = calculate_route_metrics.run(route_data)
-                tool_calls.append(
-                    AgentToolCall(
-                        tool="calculate_route_metrics",
-                        arguments=route_data,
-                        output_preview=metrics_result[:200] + "..." if len(metrics_result) > 200 else metrics_result,
-                    )
-                )
-                tool_results['metrics'] = metrics_result
-            except Exception as e:
-                tool_results['metrics'] = f"Calculation error: {e}"
-        
-        # Tool 3: Validate route timing (if task includes validation)
-        if route_request.task in ["validate_route", "validate_and_recommend"]:
-            from app.services.agent_tools import validate_route_timing
-            try:
-                route_data_for_validation = route_request.model_dump()
-                timing_result = validate_route_timing.run(route_data_for_validation)
-                tool_calls.append(
-                    AgentToolCall(
-                        tool="validate_route_timing",
-                        arguments={"route_id": route_request.route_id},
-                        output_preview=timing_result[:200] + "..." if len(timing_result) > 200 else timing_result,
-                    )
-                )
-                tool_results['timing_validation'] = timing_result
-            except Exception as e:
-                tool_results['timing_validation'] = f"Validation error: {e}"
-        
-        # Tool 4: Optimize stop sequence (if task includes optimization)
-        if route_request.task in ["optimize_route", "validate_and_recommend"]:
-            from app.services.agent_tools import optimize_stop_sequence
-            try:
-                route_data_for_optimization = route_request.model_dump()
-                optimization_result = optimize_stop_sequence.run(route_data_for_optimization)
-                tool_calls.append(
-                    AgentToolCall(
-                        tool="optimize_stop_sequence",
-                        arguments={"route_id": route_request.route_id},
-                        output_preview=optimization_result[:200] + "..." if len(optimization_result) > 200 else optimization_result,
-                    )
-                )
-                tool_results['optimization'] = optimization_result
-            except Exception as e:
-                tool_results['optimization'] = f"Optimization error: {e}"
-        
-        # Tool 5: Check traffic conditions for each stop location
-        from app.services.agent_tools import check_traffic_conditions
-        from datetime import datetime
+        # Tool 2: fetch_delivery_window
+        from app.services.agent_tools import fetch_delivery_window as fetch_window_tool
         try:
-            # Parse planned_start_time to get time of day
-            start_dt = datetime.fromisoformat(route_request.planned_start_time.replace('Z', '+00:00'))
-            time_of_day = start_dt.strftime("%H:%M")
-            
-            traffic_result = check_traffic_conditions.run(
-                location=route_request.start_location,
-                time_of_day=time_of_day
-            )
+            window_result = fetch_window_tool.run(context.route_slug)
             tool_calls.append(
                 AgentToolCall(
-                    tool="check_traffic_conditions",
-                    arguments={"location": route_request.start_location, "time_of_day": time_of_day},
-                    output_preview=traffic_result[:200] + "..." if len(traffic_result) > 200 else traffic_result,
+                    tool="fetch_delivery_window",
+                    arguments={"route_slug": context.route_slug},
+                    output_preview=window_result[:200] + "..." if len(window_result) > 200 else window_result,
                 )
             )
-            tool_results['traffic'] = traffic_result
+            tool_results['delivery_window'] = window_result
         except Exception as e:
-            tool_results['traffic'] = f"Traffic check unavailable: {e}"
+            tool_results['delivery_window'] = f"Error: {e}"
         
-        # Add RAG context if available
+        # Tool 3: fetch_support_contacts
+        from app.services.agent_tools import fetch_support_contacts as fetch_contacts_tool
+        try:
+            contacts_result = fetch_contacts_tool.run(context.audience_role)
+            tool_calls.append(
+                AgentToolCall(
+                    tool="fetch_support_contacts",
+                    arguments={"audience_role": context.audience_role},
+                    output_preview=contacts_result[:200] + "..." if len(contacts_result) > 200 else contacts_result,
+                )
+            )
+            tool_results['support_contacts'] = contacts_result
+        except Exception as e:
+            tool_results['support_contacts'] = f"Error: {e}"
+        
+        # Tool 4: list_slo_watch_items
+        from app.services.agent_tools import list_slo_watch_items as fetch_slo_tool
+        try:
+            slo_result = fetch_slo_tool.run(context.route_slug)
+            tool_calls.append(
+                AgentToolCall(
+                    tool="list_slo_watch_items",
+                    arguments={"route_slug": context.route_slug},
+                    output_preview=slo_result[:200] + "..." if len(slo_result) > 200 else slo_result,
+                )
+            )
+            tool_results['slo_items'] = slo_result
+        except Exception as e:
+            tool_results['slo_items'] = f"Error: {e}"
+        
+        # Tool 5: Try DuckDuckGo web search (if available)
+        try:
+            from langchain_community.tools import DuckDuckGoSearchRun
+            search_tool = DuckDuckGoSearchRun()
+            search_query_text = f"{context.route_slug} delivery logistics best practices"
+            search_result = search_tool.run(search_query_text)
+            tool_calls.append(
+                AgentToolCall(
+                    tool="duckduckgo_search",
+                    arguments={"query": search_query_text},
+                    output_preview=search_result[:200] + "..." if len(search_result) > 200 else search_result,
+                )
+            )
+            tool_results['web_search'] = search_result
+        except Exception as e:
+            print(f"Web search unavailable: {e}")
+            # Don't add to tool calls if it failed
+        
+        # Add RAG tool call
         if rag_contexts:
             tool_calls.append(
                 AgentToolCall(
                     tool="rag_retrieval",
-                    arguments={"query": "route planning best practices", "k": 3},
+                    arguments={"query": search_query, "k": 3},
                     output_preview=f"Retrieved {len(rag_contexts)} relevant documents",
                 )
             )
@@ -219,7 +208,7 @@ def run_route_validation_agent(
         
         if rag_contexts:
             rag_text = "\n".join([f"- ({ctx.source}) {ctx.content[:200]}..." for ctx in rag_contexts])
-            tool_context += f"\n\n=== KNOWLEDGE BASE ===\n{rag_text}"
+            tool_context += f"\n\n=== RELATED DOCUMENTATION ===\n{rag_text}"
         
         # Create prompt for route validation
         prompt = ChatPromptTemplate.from_messages([
@@ -307,6 +296,7 @@ Please validate this route.""")
 
 def _parse_validation_result(agent_output: str, route_request: RouteRequest, tool_results: dict) -> RouteValidationResult:
     """Parse agent output to extract validation result."""
+    import json
     
     is_valid = True
     issues = []

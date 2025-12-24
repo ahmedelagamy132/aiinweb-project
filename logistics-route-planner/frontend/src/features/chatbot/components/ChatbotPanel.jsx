@@ -1,15 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Send, Sparkles, TrendingUp, AlertCircle, Users, Calendar } from 'lucide-react';
+import { MessageSquare, Send, Cloud, Calculator, TrendingUp, MapPin, Clock } from 'lucide-react';
 import { post } from '../../../lib/api';
 
 /**
- * ChatbotPanel - Interactive chatbot for logistics queries
+ * ChatbotPanel - Conversational AI for route planning and logistics
  * 
  * Features:
- * - Quick question suggestions
- * - Chat history
- * - Tool call visualization
- * - AI-powered responses
+ * - Suggested questions for quick start
+ * - Real-time weather and traffic data
+ * - Route calculations and optimization
+ * - Natural language queries
  */
 export function ChatbotPanel() {
     const [messages, setMessages] = useState([]);
@@ -17,37 +17,37 @@ export function ChatbotPanel() {
     const [pending, setPending] = useState(false);
     const messagesEndRef = useRef(null);
 
-    // Suggested questions
+    // Suggested questions for users
     const suggestedQuestions = [
         {
-            icon: TrendingUp,
-            text: "What are the best practices for express delivery optimization?",
-            category: "Best Practices"
+            icon: Cloud,
+            text: "What's the weather in San Francisco?",
+            category: "Weather"
         },
         {
-            icon: AlertCircle,
-            text: "What SLO metrics should I monitor for route express-delivery?",
-            category: "Monitoring"
-        },
-        {
-            icon: Users,
-            text: "Who should I contact for driver support escalation?",
-            category: "Support"
-        },
-        {
-            icon: Calendar,
-            text: "Is the express-delivery route ready for production launch?",
-            category: "Readiness"
-        },
-        {
-            icon: Sparkles,
-            text: "Calculate metrics for a 150km route taking 3 hours",
+            icon: Calculator,
+            text: "Calculate metrics for a 150km route with 8 stops",
             category: "Calculations"
         },
         {
+            icon: TrendingUp,
+            text: "Optimize my delivery route stops for efficiency",
+            category: "Optimization"
+        },
+        {
+            icon: MapPin,
+            text: "Check traffic conditions in Los Angeles",
+            category: "Traffic"
+        },
+        {
+            icon: Clock,
+            text: "Validate route timing for afternoon deliveries",
+            category: "Validation"
+        },
+        {
             icon: MessageSquare,
-            text: "What are the critical success factors for last-mile delivery?",
-            category: "Strategy"
+            text: "What are best practices for last-mile delivery?",
+            category: "Best Practices"
         }
     ];
 
@@ -59,8 +59,11 @@ export function ChatbotPanel() {
         scrollToBottom();
     }, [messages]);
 
-    const handleSendMessage = async (messageText = input) => {
-        if (!messageText.trim() || pending) return;
+    const handleSendMessage = async (e, questionText = null) => {
+        e?.preventDefault();
+        
+        const messageText = questionText || input.trim();
+        if (!messageText || pending) return;
 
         const userMessage = {
             role: 'user',
@@ -73,21 +76,16 @@ export function ChatbotPanel() {
         setPending(true);
 
         try {
-            // Send to agent endpoint with the question as context
-            const response = await post('/ai/route-readiness', {
-                route_slug: 'express-delivery', // Default route
-                launch_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                audience_role: 'Driver',
-                audience_experience: 'intermediate',
-                include_risks: true,
-                query: messageText // Add the query
+            // Call the chat endpoint
+            const response = await post('/ai/chat', {
+                question: messageText
             });
 
             const assistantMessage = {
                 role: 'assistant',
-                content: response.gemini_insight || response.summary,
-                recommendations: response.recommended_actions,
-                toolCalls: response.tool_calls,
+                content: response.answer,
+                toolCalls: response.tool_calls || [],
+                ragContexts: response.rag_contexts || [],
                 timestamp: new Date().toISOString()
             };
 
@@ -106,8 +104,7 @@ export function ChatbotPanel() {
     };
 
     const handleQuickQuestion = (question) => {
-        setInput(question);
-        handleSendMessage(question);
+        handleSendMessage(null, question);
     };
 
     return (
@@ -117,14 +114,14 @@ export function ChatbotPanel() {
                     <MessageSquare size={24} style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }} />
                     AI Logistics Assistant
                 </h2>
-                <p>Ask questions about routes, delivery optimization, and logistics best practices</p>
+                <p>Ask me anything about logistics routes, weather, traffic, and delivery optimization</p>
             </div>
 
             {/* Suggested Questions (show when no messages) */}
             {messages.length === 0 && (
                 <div className="suggested-questions">
                     <h3 style={{ fontSize: '14px', color: '#888', marginBottom: '16px', textAlign: 'center' }}>
-                        Quick Questions
+                        Try These Questions
                     </h3>
                     <div className="suggestions-grid">
                         {suggestedQuestions.map((suggestion, index) => {
@@ -153,26 +150,6 @@ export function ChatbotPanel() {
                             <div className="message-content">
                                 <div className="message-text">{message.content}</div>
 
-                                {/* Show recommendations if available */}
-                                {message.recommendations && message.recommendations.length > 0 && (
-                                    <div className="message-recommendations">
-                                        <strong style={{ fontSize: '13px', color: '#666', display: 'block', marginBottom: '8px' }}>
-                                            Recommendations:
-                                        </strong>
-                                        {message.recommendations.map((rec, i) => (
-                                            <div key={i} className="recommendation-item">
-                                                <span className={`priority-badge priority-${rec.priority}`}>
-                                                    {rec.priority}
-                                                </span>
-                                                <strong>{rec.title}</strong>
-                                                <p style={{ fontSize: '13px', color: '#666', margin: '4px 0 0 0' }}>
-                                                    {rec.detail}
-                                                </p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
                                 {/* Show tool calls if available */}
                                 {message.toolCalls && message.toolCalls.length > 0 && (
                                     <details className="message-tools" style={{ marginTop: '12px' }}>
@@ -192,6 +169,51 @@ export function ChatbotPanel() {
                                                             ))}
                                                         </div>
                                                     )}
+                                                    {tool.output && (
+                                                        <details style={{ marginTop: '8px' }}>
+                                                            <summary style={{ fontSize: '12px', color: '#888', cursor: 'pointer' }}>
+                                                                View Output
+                                                            </summary>
+                                                            <pre style={{ 
+                                                                fontSize: '11px', 
+                                                                background: '#f8f8f8', 
+                                                                padding: '8px', 
+                                                                borderRadius: '4px',
+                                                                overflow: 'auto',
+                                                                maxHeight: '200px',
+                                                                marginTop: '4px'
+                                                            }}>
+                                                                {tool.output}
+                                                            </pre>
+                                                        </details>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </details>
+                                )}
+
+                                {/* Show RAG contexts if available */}
+                                {message.ragContexts && message.ragContexts.length > 0 && (
+                                    <details className="message-rag" style={{ marginTop: '12px' }}>
+                                        <summary style={{ cursor: 'pointer', fontSize: '13px', color: '#666' }}>
+                                            📚 Knowledge Sources ({message.ragContexts.length})
+                                        </summary>
+                                        <div className="rag-list">
+                                            {message.ragContexts.map((ctx, i) => (
+                                                <div key={i} style={{ 
+                                                    padding: '8px', 
+                                                    background: '#f0f9ff', 
+                                                    borderRadius: '4px', 
+                                                    marginTop: '8px',
+                                                    fontSize: '12px'
+                                                }}>
+                                                    <div style={{ fontWeight: '600', color: '#0369a1', marginBottom: '4px' }}>
+                                                        {ctx.source}
+                                                    </div>
+                                                    <div style={{ color: '#666', lineHeight: '1.5' }}>
+                                                        {ctx.content.substring(0, 200)}...
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -220,20 +242,15 @@ export function ChatbotPanel() {
 
             {/* Input Area */}
             <div className="chat-input-area">
-                <form
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        handleSendMessage();
-                    }}
-                    className="chat-input-form"
-                >
+                <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="chat-input-form">
                     <input
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder="Ask about routes, delivery optimization, SLO metrics..."
+                        placeholder="Ask about weather, routes, traffic, metrics, optimization..."
                         disabled={pending}
                         className="chat-input"
+                        autoFocus
                     />
                     <button
                         type="submit"

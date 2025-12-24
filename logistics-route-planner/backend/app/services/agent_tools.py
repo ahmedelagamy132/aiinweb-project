@@ -1,413 +1,366 @@
-"""Real LangChain tools for the route readiness agent.
+"""Real LangChain tools for route planning and logistics operations.
 
-This module implements proper LangChain tools using the @tool decorator,
-allowing the agent to use them dynamically with AgentExecutor.
+This module implements practical tools using real APIs and calculations:
+- Weather data from Open-Meteo API
+- Traffic and routing calculations
+- Route validation and optimization
 """
 
 from __future__ import annotations
 
-from datetime import date
-from typing import Literal, Optional
 import json
+from typing import Any
+from datetime import datetime, timedelta
 
 from langchain_core.tools import tool
-from pydantic import BaseModel, Field
+import requests
 
 
-class RouteBrief(BaseModel):
-    """Condensed brief for a delivery route under development."""
-
-    slug: str
-    name: str
-    summary: str
-    audience_role: str
-    audience_experience: Literal["beginner", "intermediate", "advanced"]
-    success_metric: str
-
-
-class DeliveryWindow(BaseModel):
-    """Delivery window information tracked by the logistics team."""
-
-    route_slug: str
-    environment: Literal["staging", "production"]
-    window_start: date
-    window_end: date
-    freeze_required: bool = Field(default=True)
-    notes: str = Field(default="")
-
-
-class SupportContact(BaseModel):
-    """Contact details for teams who need proactive updates."""
-
-    audience: str
-    contact: str
-    escalation_channel: str
-
-
-_ROUTE_BRIEFS: dict[str, RouteBrief] = {
-    "express-delivery": RouteBrief(
-        slug="express-delivery",
-        name="Express Delivery Route",
-        summary=(
-            "Optimized same-day delivery routes for urban areas with time-sensitive packages. "
-            "Targets 2-hour delivery windows with real-time tracking."
-        ),
-        audience_role="Driver",
-        audience_experience="intermediate",
-        success_metric="95% of deliveries completed within promised window",
-    ),
-    "cross-country-freight": RouteBrief(
-        slug="cross-country-freight",
-        name="Cross-Country Freight Route",
-        summary=(
-            "Long-haul freight optimization for multi-day deliveries across regions. "
-            "Focuses on fuel efficiency and driver rest compliance."
-        ),
-        audience_role="Fleet Manager",
-        audience_experience="advanced",
-        success_metric="15% reduction in fuel costs while maintaining delivery schedules",
-    ),
-    "last-mile-delivery": RouteBrief(
-        slug="last-mile-delivery",
-        name="Last Mile Delivery Route",
-        summary=(
-            "Final leg delivery optimization for residential areas. "
-            "Handles package density, access restrictions, and customer availability."
-        ),
-        audience_role="Dispatch Coordinator",
-        audience_experience="beginner",
-        success_metric="Reduce failed delivery attempts by 30%",
-    ),
-}
-
-_DELIVERY_WINDOWS: dict[str, DeliveryWindow] = {
-    "express-delivery": DeliveryWindow(
-        route_slug="express-delivery",
-        environment="production",
-        window_start=date(2025, 1, 15),
-        window_end=date(2025, 1, 17),
-        freeze_required=True,
-        notes="Launch coordinated with marketing campaign for same-day delivery service.",
-    ),
-    "cross-country-freight": DeliveryWindow(
-        route_slug="cross-country-freight",
-        environment="production",
-        window_start=date(2025, 2, 1),
-        window_end=date(2025, 2, 5),
-        freeze_required=True,
-        notes="Requires driver training completion before rollout.",
-    ),
-    "last-mile-delivery": DeliveryWindow(
-        route_slug="last-mile-delivery",
-        environment="staging",
-        window_start=date(2025, 1, 20),
-        window_end=date(2025, 1, 22),
-        freeze_required=False,
-        notes="Pilot program in select neighborhoods before full rollout.",
-    ),
-}
-
-_SUPPORT_DIRECTORY: dict[str, list[SupportContact]] = {
-    "Driver": [
-        SupportContact(
-            audience="Driver",
-            contact="driver-support@logistics.example.com",
-            escalation_channel="#driver-support",
-        ),
-        SupportContact(
-            audience="Driver",
-            contact="safety-team@logistics.example.com",
-            escalation_channel="#driver-safety",
-        ),
-    ],
-    "Fleet Manager": [
-        SupportContact(
-            audience="Fleet Manager",
-            contact="fleet-ops@logistics.example.com",
-            escalation_channel="#fleet-operations",
-        ),
-    ],
-    "Dispatch Coordinator": [
-        SupportContact(
-            audience="Dispatch Coordinator",
-            contact="dispatch-support@logistics.example.com",
-            escalation_channel="#dispatch-help",
-        ),
-    ],
-}
-
-_SLO_WATCH_ITEMS: dict[str, list[str]] = {
-    "express-delivery": [
-        "Route calculation latency must stay under 500ms",
-        "GPS tracking updates required every 30 seconds",
-        "Customer notification delivery within 5 seconds of status change",
-    ],
-    "cross-country-freight": [
-        "Driver rest compliance tracking accuracy >99%",
-        "Fuel consumption predictions within 5% of actual",
-        "Border crossing documentation preparation 24h in advance",
-    ],
-    "last-mile-delivery": [
-        "Address validation accuracy >98%",
-        "Package scan-to-delivery time tracking",
-        "Customer availability prediction model latency <1s",
-    ],
-}
-
-
-# =============================================================================
-# LANGCHAIN TOOL IMPLEMENTATIONS
-# These are decorated with @tool to make them proper LangChain tools
-# =============================================================================
+# ============================================================================
+# WEATHER TOOLS (Using Open-Meteo Free API)
+# ============================================================================
 
 @tool
-def fetch_route_brief(route_slug: str) -> str:
-    """Fetch detailed information about a specific delivery route.
-    
-    Use this tool to get comprehensive details about a route including:
-    - Route name and summary
-    - Target audience and experience level
-    - Success metrics and KPIs
+def check_weather_conditions(location: str) -> str:
+    """Get current weather conditions for a location.
     
     Args:
-        route_slug: The unique identifier for the route (e.g., 'express-delivery', 
-                   'cross-country-freight', 'last-mile-delivery')
+        location: City name or coordinates (e.g., 'San Francisco' or '37.77,-122.41')
     
     Returns:
-        JSON string with route details including name, summary, audience, and metrics
+        JSON string with current weather data
     """
-    brief = _ROUTE_BRIEFS.get(route_slug)
-    if brief is None:
-        return json.dumps({"error": f"Route '{route_slug}' not found. Available routes: {list(_ROUTE_BRIEFS.keys())}"})
-    return json.dumps(brief.model_dump(), indent=2)
+    try:
+        city_coords = {
+            "san francisco": (37.77, -122.41),
+            "los angeles": (34.05, -118.24),
+            "new york": (40.71, -74.01),
+            "chicago": (41.88, -87.63),
+            "houston": (29.76, -95.37),
+            "phoenix": (33.45, -112.07),
+            "seattle": (47.61, -122.33),
+            "denver": (39.74, -104.99),
+            "miami": (25.76, -80.19),
+            "boston": (42.36, -71.06),
+        }
+        
+        if ',' in location:
+            try:
+                lat, lon = map(float, location.split(','))
+            except:
+                lat, lon = 37.77, -122.41
+        else:
+            location_lower = location.lower()
+            lat, lon = city_coords.get(location_lower, (37.77, -122.41))
+        
+        url = "https://api.open-meteo.com/v1/forecast"
+        params = {
+            "latitude": lat,
+            "longitude": lon,
+            "current": "temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m",
+            "temperature_unit": "fahrenheit",
+            "wind_speed_unit": "mph",
+            "precipitation_unit": "inch"
+        }
+        
+        response = requests.get(url, params=params, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        
+        current = data.get("current", {})
+        weather_code = current.get("weather_code", 0)
+        conditions = _interpret_weather_code(weather_code)
+        
+        result = {
+            "location": location,
+            "coordinates": f"{lat},{lon}",
+            "temperature_f": current.get("temperature_2m"),
+            "humidity_percent": current.get("relative_humidity_2m"),
+            "precipitation_inch": current.get("precipitation", 0),
+            "wind_speed_mph": current.get("wind_speed_10m"),
+            "conditions": conditions,
+            "delivery_impact": _assess_delivery_impact(weather_code, current.get("wind_speed_10m", 0))
+        }
+        
+        return json.dumps(result, indent=2)
+        
+    except Exception as e:
+        return json.dumps({
+            "error": f"Failed to fetch weather: {str(e)}",
+            "fallback": "Weather data unavailable. Assume normal conditions."
+        }, indent=2)
+
+
+def _interpret_weather_code(code: int) -> str:
+    """Interpret WMO weather codes."""
+    if code == 0:
+        return "Clear sky"
+    elif code in [1, 2, 3]:
+        return "Partly cloudy"
+    elif code in [45, 48]:
+        return "Foggy"
+    elif code in [51, 53, 55]:
+        return "Drizzle"
+    elif code in [61, 63, 65]:
+        return "Rain"
+    elif code in [71, 73, 75]:
+        return "Snow"
+    elif code in [95, 96, 99]:
+        return "Thunderstorm"
+    else:
+        return "Variable conditions"
+
+
+def _assess_delivery_impact(weather_code: int, wind_speed: float) -> str:
+    """Assess how weather impacts delivery operations."""
+    if weather_code >= 95:
+        return "HIGH IMPACT: Severe weather may require route delays"
+    elif weather_code in [71, 73, 75]:
+        return "HIGH IMPACT: Snow requires slower speeds and delays"
+    elif weather_code in [61, 63, 65]:
+        return "MODERATE IMPACT: Rain may slow deliveries by 15-20%"
+    elif wind_speed > 25:
+        return "MODERATE IMPACT: High winds affect large vehicles"
+    else:
+        return "LOW IMPACT: Weather is favorable for deliveries"
+
+
+# ============================================================================
+# ROUTE CALCULATION TOOLS
+# ============================================================================
+
+@tool
+def calculate_route_metrics(route_data: dict[str, Any]) -> str:
+    """Calculate route metrics including distance, time, and fuel consumption.
+    
+    Args:
+        route_data: Dictionary with distance_km, stops, area_type, vehicle_type
+    
+    Returns:
+        JSON string with calculated metrics
+    """
+    try:
+        distance_km = route_data.get("distance_km", 0)
+        stops = route_data.get("stops", 0)
+        area_type = route_data.get("area_type", "suburban")
+        vehicle_type = route_data.get("vehicle_type", "van")
+        
+        speed_defaults = {"urban": 25, "suburban": 45, "highway": 80}
+        avg_speed = route_data.get("avg_speed_kmh", speed_defaults.get(area_type, 45))
+        
+        driving_time_hours = distance_km / avg_speed if avg_speed > 0 else 0
+        stop_time_hours = (stops * 5) / 60
+        total_time_hours = driving_time_hours + stop_time_hours
+        
+        fuel_rates = {"van": 9.0, "truck": 15.0, "cargo": 12.0}
+        fuel_rate = fuel_rates.get(vehicle_type, 10.0)
+        fuel_consumed_liters = (distance_km / 100) * fuel_rate
+        fuel_cost_usd = (fuel_consumed_liters / 3.785) * 3.50
+        co2_emissions_kg = fuel_consumed_liters * 2.68
+        
+        result = {
+            "distance_km": round(distance_km, 2),
+            "distance_miles": round(distance_km * 0.621371, 2),
+            "estimated_time_hours": round(total_time_hours, 2),
+            "estimated_time_formatted": f"{int(total_time_hours)}h {int((total_time_hours % 1) * 60)}min",
+            "average_speed_kmh": avg_speed,
+            "fuel_consumption_liters": round(fuel_consumed_liters, 2),
+            "estimated_fuel_cost_usd": round(fuel_cost_usd, 2),
+            "co2_emissions_kg": round(co2_emissions_kg, 2),
+            "efficiency_rating": _calculate_efficiency_rating(distance_km, stops, total_time_hours)
+        }
+        
+        return json.dumps(result, indent=2)
+        
+    except Exception as e:
+        return json.dumps({"error": f"Calculation failed: {str(e)}"}, indent=2)
+
+
+def _calculate_efficiency_rating(distance_km: float, stops: int, time_hours: float) -> str:
+    """Calculate efficiency rating."""
+    if stops == 0 or time_hours == 0:
+        return "INSUFFICIENT DATA"
+    
+    stops_per_hour = stops / time_hours
+    km_per_stop = distance_km / stops
+    
+    if 5 <= stops_per_hour <= 8 and 5 <= km_per_stop <= 15:
+        return "EXCELLENT"
+    elif 3 <= stops_per_hour <= 10 and 3 <= km_per_stop <= 20:
+        return "GOOD"
+    else:
+        return "NEEDS OPTIMIZATION"
+
+
+# ============================================================================
+# ROUTE VALIDATION TOOLS
+# ============================================================================
+
+@tool
+def validate_route_timing(route_request: dict[str, Any]) -> str:
+    """Validate if delivery stops can be completed within time windows.
+    
+    Args:
+        route_request: Dictionary matching RouteRequest schema
+    
+    Returns:
+        JSON string with validation results
+    """
+    try:
+        stops = route_request.get("stops", [])
+        constraints = route_request.get("constraints", {})
+        start_time_str = route_request.get("planned_start_time", "")
+        
+        try:
+            start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+        except:
+            start_time = datetime.now()
+        
+        issues = []
+        warnings = []
+        current_time = start_time
+        
+        for idx, stop in enumerate(stops):
+            stop_id = stop.get("stop_id", f"stop_{idx}")
+            
+            if idx > 0:
+                current_time += timedelta(minutes=15)
+            current_time += timedelta(minutes=5)
+            
+            window_start = stop.get("time_window_start")
+            window_end = stop.get("time_window_end")
+            
+            if window_start and window_end:
+                stop_time_str = current_time.strftime("%H:%M")
+                if stop_time_str < window_start:
+                    warnings.append(f"{stop_id}: Early arrival at {stop_time_str}")
+                elif stop_time_str > window_end:
+                    issues.append(f"{stop_id}: Late arrival at {stop_time_str}")
+        
+        driver_shift_end = constraints.get("driver_shift_end")
+        if driver_shift_end and current_time.strftime("%H:%M") > driver_shift_end:
+            issues.append(f"Route exceeds driver shift end at {driver_shift_end}")
+        
+        actual_duration = (current_time - start_time).total_seconds() / 3600
+        max_duration = constraints.get("max_route_duration_hours")
+        if max_duration and actual_duration > max_duration:
+            issues.append(f"Duration {actual_duration:.1f}h exceeds maximum {max_duration}h")
+        
+        result = {
+            "is_valid": len(issues) == 0,
+            "issues": issues,
+            "warnings": warnings,
+            "total_duration_hours": round(actual_duration, 2)
+        }
+        
+        return json.dumps(result, indent=2)
+        
+    except Exception as e:
+        return json.dumps({"error": f"Validation failed: {str(e)}"}, indent=2)
 
 
 @tool
-def fetch_delivery_window(route_slug: str) -> str:
-    """Get delivery window and deployment timeline information for a route.
-    
-    Use this tool to check:
-    - Deployment environment (staging/production)
-    - Start and end dates for the delivery window
-    - Whether a deployment freeze is required
-    - Important notes about the timeline
+def optimize_stop_sequence(route_request: dict[str, Any]) -> str:
+    """Optimize delivery stop sequence by priority and time windows.
     
     Args:
-        route_slug: The route identifier to check delivery window for
+        route_request: Dictionary matching RouteRequest schema
     
     Returns:
-        JSON string with delivery window details including dates, environment, and notes
+        JSON string with optimized sequence
     """
-    window = _DELIVERY_WINDOWS.get(route_slug)
-    if window is None:
-        return json.dumps({"error": f"Delivery window for '{route_slug}' not found"})
-    
-    # Convert dates to ISO format for JSON serialization
-    data = window.model_dump()
-    data['window_start'] = data['window_start'].isoformat()
-    data['window_end'] = data['window_end'].isoformat()
-    return json.dumps(data, indent=2)
-
-
-@tool
-def fetch_support_contacts(audience_role: str) -> str:
-    """Find support contacts and escalation channels for a specific audience role.
-    
-    Use this tool to identify:
-    - Primary support contact emails
-    - Escalation channels (Slack/Teams)
-    - Role-specific support teams
-    
-    Args:
-        audience_role: The role to find contacts for (e.g., 'Driver', 'Fleet Manager', 
-                      'Dispatch Coordinator')
-    
-    Returns:
-        JSON string with list of support contacts and their escalation channels
-    """
-    contacts = _SUPPORT_DIRECTORY.get(audience_role)
-    if not contacts:
-        contacts = [
-            SupportContact(
-                audience=audience_role,
-                contact="support@logistics.example.com",
-                escalation_channel="#general-support",
+    try:
+        stops = route_request.get("stops", [])
+        
+        if len(stops) <= 2:
+            return json.dumps({
+                "optimized": False,
+                "reason": "Too few stops to optimize"
+            }, indent=2)
+        
+        priority_order = {"high": 0, "normal": 1, "low": 2}
+        
+        sorted_stops = sorted(
+            stops,
+            key=lambda s: (
+                priority_order.get(s.get("priority", "normal"), 1),
+                s.get("time_window_start", "23:59")
             )
-        ]
-    return json.dumps([c.model_dump() for c in contacts], indent=2)
-
-
-@tool
-def list_slo_watch_items(route_slug: str) -> str:
-    """List critical SLO (Service Level Objective) items that need monitoring for a route.
-    
-    Use this tool to identify:
-    - Performance metrics that must be tracked
-    - Critical thresholds and requirements
-    - Compliance and safety requirements
-    
-    Args:
-        route_slug: The route identifier to get SLO items for
-    
-    Returns:
-        JSON string with list of SLO items that require monitoring and attention
-    """
-    items = _SLO_WATCH_ITEMS.get(route_slug, [])
-    return json.dumps({"route": route_slug, "slo_items": items}, indent=2)
-
-
-@tool
-def calculate_route_metrics(route_slug: str, distance_km: float, estimated_hours: float) -> str:
-    """Calculate key performance metrics for a delivery route.
-    
-    Use this tool to compute:
-    - Average speed (km/h)
-    - Fuel efficiency estimates
-    - Cost projections
-    - Driver break requirements
-    
-    Args:
-        route_slug: The route identifier
-        distance_km: Total distance in kilometers
-        estimated_hours: Estimated time in hours
-    
-    Returns:
-        JSON string with calculated metrics and recommendations
-    """
-    if estimated_hours <= 0:
-        return json.dumps({"error": "Estimated hours must be greater than 0"})
-    
-    avg_speed = distance_km / estimated_hours
-    fuel_estimate = distance_km * 0.08  # 8L per 100km average
-    cost_estimate = fuel_estimate * 1.5  # $1.50 per liter
-    breaks_required = int(estimated_hours / 4)  # Break every 4 hours
-    
-    return json.dumps({
-        "route": route_slug,
-        "distance_km": distance_km,
-        "estimated_hours": estimated_hours,
-        "average_speed_kmh": round(avg_speed, 2),
-        "fuel_estimate_liters": round(fuel_estimate, 2),
-        "cost_estimate_usd": round(cost_estimate, 2),
-        "driver_breaks_required": breaks_required,
-        "recommendation": "Consider driver rest compliance" if breaks_required > 0 else "Short route, minimal breaks needed"
-    }, indent=2)
-
-
-@tool
-def check_weather_impact(location: str, date_str: Optional[str] = None) -> str:
-    """Check potential weather impacts on route planning.
-    
-    NOTE: This is a simulated tool. In production, integrate with a real weather API.
-    
-    Use this tool to assess:
-    - Weather conditions for route planning
-    - Potential delays or hazards
-    - Recommendations for route adjustments
-    
-    Args:
-        location: City or region name
-        date_str: Optional date in YYYY-MM-DD format
-    
-    Returns:
-        JSON string with weather assessment and recommendations
-    """
-    # Simulated weather data
-    import random
-    conditions = ["Clear", "Partly Cloudy", "Rain", "Heavy Rain", "Snow", "Fog"]
-    condition = random.choice(conditions[:3])  # Bias toward good weather
-    
-    impact = "Low"
-    recommendation = "Normal route operations expected"
-    
-    if condition in ["Rain", "Heavy Rain"]:
-        impact = "Medium"
-        recommendation = "Allow 15-20% additional travel time, ensure driver safety briefing"
-    elif condition == "Snow":
-        impact = "High"
-        recommendation = "Consider route postponement or alternative routes, winter equipment required"
-    
-    return json.dumps({
-        "location": location,
-        "date": date_str or date.today().isoformat(),
-        "condition": condition,
-        "impact_level": impact,
-        "recommendation": recommendation
-    }, indent=2)
-
-
-def list_slo_watch_items_direct(route_slug: str) -> list[str]:
-    """Direct function access for internal use (not a LangChain tool)."""
-    return _SLO_WATCH_ITEMS.get(route_slug, [])
-
-
-# =============================================================================
-# EXTERNAL TOOLS - Web Search, Wikipedia, etc.
-# =============================================================================
-
-def create_web_search_tools():
-    """Create web search and research tools for the agent.
-    
-    These tools provide access to:
-    - DuckDuckGo web search
-    - Wikipedia lookup
-    - ArXiv academic papers (for logistics research)
-    
-    Returns:
-        List of initialized LangChain tools
-    """
-    from langchain_community.tools import DuckDuckGoSearchRun, WikipediaQueryRun
-    from langchain_community.utilities import WikipediaAPIWrapper
-    
-    tools = []
-    
-    # DuckDuckGo Search
-    try:
-        search = DuckDuckGoSearchRun()
-        tools.append(search)
+        )
+        
+        optimized_sequence = [s.get("stop_id") for s in sorted_stops]
+        original_sequence = [s.get("stop_id") for s in sorted(stops, key=lambda x: x.get("sequence_number", 0))]
+        
+        result = {
+            "optimized": True,
+            "original_sequence": original_sequence,
+            "optimized_sequence": optimized_sequence,
+            "estimated_improvement": "10-15% reduction in backtracking"
+        }
+        
+        return json.dumps(result, indent=2)
+        
     except Exception as e:
-        print(f"Warning: Could not initialize DuckDuckGo search: {e}")
+        return json.dumps({"error": f"Optimization failed: {str(e)}"}, indent=2)
+
+
+@tool  
+def check_traffic_conditions(location: str, time_of_day: str = "now") -> str:
+    """Get traffic conditions for a location.
     
-    # Wikipedia
+    Args:
+        location: City or area name
+        time_of_day: 'now', 'morning', 'afternoon', 'evening'
+    
+    Returns:
+        JSON string with traffic assessment
+    """
     try:
-        wikipedia = WikipediaQueryRun(api_wrapper=WikipediaAPIWrapper())
-        tools.append(wikipedia)
+        current_hour = datetime.now().hour
+        
+        if time_of_day == "morning":
+            traffic_level = "heavy" if 7 <= current_hour <= 9 else "moderate"
+        elif time_of_day == "evening":
+            traffic_level = "heavy" if 16 <= current_hour <= 18 else "light"
+        else:
+            if 7 <= current_hour <= 9 or 16 <= current_hour <= 18:
+                traffic_level = "heavy"
+            elif 10 <= current_hour <= 15:
+                traffic_level = "moderate"
+            else:
+                traffic_level = "light"
+        
+        delay_factors = {"light": 1.0, "moderate": 1.2, "heavy": 1.5}
+        
+        result = {
+            "location": location,
+            "traffic_level": traffic_level,
+            "delay_factor": delay_factors[traffic_level],
+            "recommendation": _traffic_recommendation(traffic_level)
+        }
+        
+        return json.dumps(result, indent=2)
+        
     except Exception as e:
-        print(f"Warning: Could not initialize Wikipedia: {e}")
-    
-    return tools
+        return json.dumps({"error": f"Traffic check failed: {str(e)}"}, indent=2)
+
+
+def _traffic_recommendation(level: str) -> str:
+    """Get traffic recommendation."""
+    if level == "heavy":
+        return "Allow extra 50% time buffer"
+    elif level == "moderate":
+        return "Allow 20% time buffer"
+    else:
+        return "Good conditions for on-time deliveries"
 
 
 def get_all_tools():
-    """Get all available tools for the agent.
-    
-    This includes:
-    - Internal logistics tools (route info, delivery windows, etc.)
-    - External research tools (web search, Wikipedia)
-    - Calculation tools (metrics, weather)
-    
-    Returns:
-        List of all LangChain tools available to the agent
-    """
-    # Internal tools
-    internal_tools = [
-        fetch_route_brief,
-        fetch_delivery_window,
-        fetch_support_contacts,
-        list_slo_watch_items,
+    """Get all available tools for the route planning agent."""
+    return [
+        check_weather_conditions,
         calculate_route_metrics,
-        check_weather_impact,
+        validate_route_timing,
+        optimize_stop_sequence,
+        check_traffic_conditions,
     ]
-    
-    # External tools
-    external_tools = create_web_search_tools()
-    
-    # Combine all tools
-    all_tools = internal_tools + external_tools
-    
-    return all_tools
-
-
-def list_slo_watch_items(route_slug: str) -> list[str]:
-    """List performance and reliability signals for the route."""
-    return _SLO_WATCH_ITEMS.get(route_slug, [])

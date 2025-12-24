@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import Base, engine
 from app.routers.agent import router as agent_router
+from app.routers.chat import router as chat_router
 from app.routers.echo import router as echo_router
 from app.routers.gemini import router as gemini_router
 from app.routers.planner import router as planner_router
@@ -36,6 +37,7 @@ app.add_middleware(
 )
 
 app.include_router(agent_router)
+app.include_router(chat_router)
 app.include_router(echo_router)
 app.include_router(gemini_router)
 app.include_router(planner_router)

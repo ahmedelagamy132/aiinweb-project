@@ -29,7 +29,7 @@ function App() {
     if (activeTab === 'agent') {
         content = (
             <section className="card card-featured animate-in">
-                <AgentPanel {...agent} />
+                <AgentPanel />
             </section>
         );
     } else if (activeTab === 'echo') {

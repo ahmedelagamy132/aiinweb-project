@@ -1,10 +1,10 @@
-"""Agent endpoints that power the route readiness workflow.
+"""Agent endpoints for route validation and optimization.
 
 This router uses LangChain-based agent implementation with:
-- Gemini/Groq-powered AI insights for route recommendations
+- Real tools: weather API, route calculations, optimization, traffic analysis
+- Gemini/Groq-powered AI for route validation recommendations
 - FAISS-based RAG for retrieving relevant documentation
 - Database persistence for auditing and learning from past runs
-- Historical data access for reviewing previous agent executions
 """
 
 from __future__ import annotations
@@ -18,25 +18,23 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.services.rag import build_retriever
+from app.schemas.route_planning import RouteRequest, RouteValidationResult
 
-# Use LangChain agent by default, fallback to original if needed
+# Use LangChain agent by default
 USE_LANGCHAIN = os.getenv("USE_LANGCHAIN_AGENT", "true").lower() == "true"
 
 if USE_LANGCHAIN:
     from app.services.agent_langchain import (
-        AgentRunContext,
-        AgentRunResult,
         AgentServiceError,
         get_agent_history,
-        run_route_readiness_agent,
+        run_route_validation_agent,
     )
 else:
-    from app.services.agent import (
-        AgentRunContext,
-        AgentRunResult,
+    # Fallback not implemented for new route planning agent
+    from app.services.agent_langchain import (
         AgentServiceError,
         get_agent_history,
-        run_route_readiness_agent,
+        run_route_validation_agent,
     )
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -61,21 +59,25 @@ class AgentHistoryResponse(BaseModel):
     total: int
 
 
-@router.post("/route-readiness", response_model=AgentRunResult)
-def route_readiness(
-    payload: AgentRunContext,
+@router.post("/validate-route", response_model=RouteValidationResult)
+def validate_route(
+    payload: RouteRequest,
     db: Session = Depends(get_db),
-) -> AgentRunResult:
-    """Run the AI-powered agent pipeline and surface structured output.
+) -> RouteValidationResult:
+    """Run AI-powered route validation and optimization.
 
     This endpoint orchestrates:
-    1. Tool calls to gather route, delivery window, and contact data
-    2. FAISS-based RAG retrieval for relevant documentation
-    3. Gemini AI insight generation (when API key is configured)
-    4. Database persistence for auditing
+    1. Weather API calls for delivery locations
+    2. Route metrics calculations (fuel, time, cost)
+    3. Time window validation with constraints
+    4. Stop sequence optimization by priority
+    5. Traffic analysis for route timing
+    6. FAISS-based RAG retrieval for best practices
+    7. Gemini/Groq AI validation and recommendations
+    8. Database persistence for auditing
     """
     try:
-        return run_route_readiness_agent(payload, db=db)
+        return run_route_validation_agent(payload, db=db)
     except AgentServiceError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -111,26 +113,39 @@ def agent_history(
 
 @router.get("/routes")
 def list_available_routes() -> dict[str, Any]:
-    """List available routes that the agent can analyze.
+    """List example routes for testing the validation system.
 
-    This endpoint helps the frontend populate dropdowns and
-    provides metadata about supported routes.
+    This endpoint provides sample RouteRequest examples that
+    can be used to test the route validation agent.
     """
-    from app.services.agent_tools import _ROUTE_BRIEFS, _DELIVERY_WINDOWS
+    examples = [
+        {
+            "route_id": "RT-001",
+            "name": "Downtown Morning Delivery",
+            "start_location": "San Francisco Depot",
+            "planned_start_time": "2025-12-24T07:00:00Z",
+            "num_stops": 8,
+            "description": "High-priority deliveries in downtown SF during morning hours"
+        },
+        {
+            "route_id": "RT-002",
+            "name": "Suburban Afternoon Route",
+            "start_location": "Oakland Warehouse",
+            "planned_start_time": "2025-12-24T13:00:00Z",
+            "num_stops": 12,
+            "description": "Standard deliveries in suburban areas with flexible time windows"
+        },
+        {
+            "route_id": "RT-003",
+            "name": "Express Cross-City",
+            "start_location": "San Jose Distribution Center",
+            "planned_start_time": "2025-12-24T10:00:00Z",
+            "num_stops": 5,
+            "description": "Urgent deliveries across multiple cities"
+        }
+    ]
 
-    routes = []
-    for slug, brief in _ROUTE_BRIEFS.items():
-        window = _DELIVERY_WINDOWS.get(slug)
-        routes.append({
-            "slug": slug,
-            "name": brief.name,
-            "summary": brief.summary,
-            "audience_role": brief.audience_role,
-            "has_delivery_window": window is not None,
-            "delivery_date": window.window_start.isoformat() if window else None,
-        })
-
-    return {"routes": routes, "total": len(routes)}
+    return {"routes": examples, "total": len(examples)}
 
 
 class SearchResult(BaseModel):
