@@ -52,6 +52,177 @@ function MapClickHandler({ onMapClick }) {
     return null;
 }
 
+// Helper functions for tool display
+function getToolIcon(toolName) {
+    const lowerName = toolName.toLowerCase();
+    if (lowerName.includes('weather')) return '🌤️';
+    if (lowerName.includes('metric') || lowerName.includes('calculate')) return '📊';
+    if (lowerName.includes('timing') || lowerName.includes('validate')) return '⏰';
+    if (lowerName.includes('optimize') || lowerName.includes('sequence')) return '🎯';
+    if (lowerName.includes('traffic')) return '🚦';
+    return '🔧';
+}
+
+function formatToolName(toolName) {
+    return toolName
+        .replace(/_/g, ' ')
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+}
+
+function parseToolOutput(output) {
+    try {
+        // Try to parse JSON
+        const data = typeof output === 'string' ? JSON.parse(output) : output;
+        
+        // Format based on tool type
+        const entries = [];
+        
+        // Weather data
+        if (data.location && data.temperature_celsius !== undefined) {
+            entries.push(
+                <div key="location" style={{ marginBottom: '0.5rem' }}>
+                    <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>📍 Location:</span>
+                    <span style={{ color: '#e2e8f0', marginLeft: '0.5rem', fontWeight: '600' }}>{data.location}</span>
+                </div>,
+                <div key="temp" style={{ marginBottom: '0.5rem' }}>
+                    <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>🌡️ Temperature:</span>
+                    <span style={{ color: '#60a5fa', marginLeft: '0.5rem', fontWeight: '600' }}>{data.temperature_celsius}°C</span>
+                </div>,
+                <div key="conditions" style={{ marginBottom: '0.5rem' }}>
+                    <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>☁️ Conditions:</span>
+                    <span style={{ color: '#86efac', marginLeft: '0.5rem' }}>{data.current_conditions}</span>
+                </div>
+            );
+            if (data.alert_level) {
+                entries.push(
+                    <div key="alert" style={{ marginTop: '0.75rem', padding: '0.5rem', background: data.alert_level === 'normal' ? '#1f2d1f' : '#2d1f1f', borderRadius: '4px', borderLeft: `3px solid ${data.alert_level === 'normal' ? '#10b981' : '#ef4444'}` }}>
+                        <span style={{ color: data.alert_level === 'normal' ? '#86efac' : '#fca5a5', fontSize: '0.8rem', fontWeight: '600' }}>
+                            {data.alert_level === 'normal' ? '✅ Safe Conditions' : '⚠️ Alert'}
+                        </span>
+                    </div>
+                );
+            }
+        }
+        
+        // Metrics data
+        else if (data.distance_km !== undefined || data.estimated_time_hours !== undefined) {
+            if (data.distance_km !== undefined) {
+                entries.push(
+                    <div key="distance" style={{ marginBottom: '0.5rem' }}>
+                        <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>📏 Distance:</span>
+                        <span style={{ color: '#10b981', marginLeft: '0.5rem', fontWeight: '700', fontSize: '1.1rem' }}>{data.distance_km.toFixed(1)} km</span>
+                    </div>
+                );
+            }
+            if (data.estimated_time_hours !== undefined) {
+                entries.push(
+                    <div key="time" style={{ marginBottom: '0.5rem' }}>
+                        <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>⏱️ Duration:</span>
+                        <span style={{ color: '#60a5fa', marginLeft: '0.5rem', fontWeight: '700', fontSize: '1.1rem' }}>{data.estimated_time_hours.toFixed(1)}h</span>
+                    </div>
+                );
+            }
+            if (data.fuel_consumption_liters) {
+                entries.push(
+                    <div key="fuel" style={{ marginBottom: '0.5rem' }}>
+                        <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>⛽ Fuel:</span>
+                        <span style={{ color: '#fbbf24', marginLeft: '0.5rem', fontWeight: '600' }}>{data.fuel_consumption_liters.toFixed(1)}L</span>
+                    </div>
+                );
+            }
+        }
+        
+        // Timing validation data
+        else if (data.is_valid !== undefined) {
+            entries.push(
+                <div key="valid" style={{ marginBottom: '0.75rem', padding: '0.5rem', background: data.is_valid ? '#1f2d1f' : '#2d1f1f', borderRadius: '4px' }}>
+                    <span style={{ color: data.is_valid ? '#86efac' : '#fca5a5', fontWeight: '700', fontSize: '0.9rem' }}>
+                        {data.is_valid ? '✅ Timing Valid' : '❌ Timing Issues'}
+                    </span>
+                </div>
+            );
+            if (data.issues && data.issues.length > 0) {
+                entries.push(
+                    <div key="issues" style={{ fontSize: '0.8rem', color: '#fca5a5' }}>
+                        {data.issues.map((issue, i) => <div key={i}>⚠️ {issue}</div>)}
+                    </div>
+                );
+            }
+        }
+        
+        // Optimization data
+        else if (data.optimized_sequence) {
+            entries.push(
+                <div key="optimized" style={{ marginBottom: '0.5rem' }}>
+                    <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>✨ Optimized:</span>
+                    <span style={{ color: data.optimized ? '#86efac' : '#fca5a5', marginLeft: '0.5rem', fontWeight: '600' }}>
+                        {data.optimized ? 'Yes' : 'No'}
+                    </span>
+                </div>,
+                <div key="sequence" style={{ marginTop: '0.5rem', padding: '0.5rem', background: '#1f2d1f', borderRadius: '4px', fontSize: '0.8rem' }}>
+                    <div style={{ color: '#86efac', fontWeight: '600' }}>
+                        {data.optimized_sequence.join(' → ')}
+                    </div>
+                </div>
+            );
+            if (data.estimated_improvement) {
+                entries.push(
+                    <div key="improvement" style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#10b981' }}>
+                        💡 {data.estimated_improvement}
+                    </div>
+                );
+            }
+        }
+        
+        // Traffic data
+        else if (data.traffic_level) {
+            const trafficColor = data.traffic_level === 'light' ? '#10b981' : data.traffic_level === 'moderate' ? '#fbbf24' : '#ef4444';
+            entries.push(
+                <div key="traffic" style={{ marginBottom: '0.5rem' }}>
+                    <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>🚦 Level:</span>
+                    <span style={{ color: trafficColor, marginLeft: '0.5rem', fontWeight: '700', textTransform: 'uppercase' }}>
+                        {data.traffic_level}
+                    </span>
+                </div>
+            );
+            if (data.estimated_delay_minutes) {
+                entries.push(
+                    <div key="delay" style={{ marginBottom: '0.5rem' }}>
+                        <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>⏳ Delay:</span>
+                        <span style={{ color: '#fbbf24', marginLeft: '0.5rem', fontWeight: '600' }}>+{data.estimated_delay_minutes} min</span>
+                    </div>
+                );
+            }
+        }
+        
+        // Fallback: show first 3-4 key fields
+        if (entries.length === 0) {
+            Object.entries(data).slice(0, 4).forEach(([key, value]) => {
+                if (typeof value !== 'object') {
+                    entries.push(
+                        <div key={key} style={{ marginBottom: '0.3rem', fontSize: '0.8rem' }}>
+                            <span style={{ color: '#8b92a0' }}>{key.replace(/_/g, ' ')}:</span>
+                            <span style={{ color: '#cbd5e0', marginLeft: '0.5rem' }}>{String(value)}</span>
+                        </div>
+                    );
+                }
+            });
+        }
+        
+        return <div>{entries}</div>;
+        
+    } catch (error) {
+        // Fallback for non-JSON output
+        return (
+            <div style={{ fontSize: '0.8rem', color: '#8b92a0', lineHeight: '1.5' }}>
+                {String(output).slice(0, 200)}{output.length > 200 ? '...' : ''}
+            </div>
+        );
+    }
+}
+
 /**
  * AgentPanel - Interactive map-based route planning UI
  * 
@@ -673,21 +844,56 @@ export function AgentPanel() {
 
                     {/* Tools Used Section */}
                     {result.tool_calls && result.tool_calls.length > 0 && (
-                        <div style={{ padding: '1rem', background: '#0f1419', borderRadius: '8px', border: '1px solid #4a5568' }}>
-                            <h3 style={{ fontSize: '1.1rem', marginTop: '0', marginBottom: '1rem', color: '#a0aec0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                🔧 Tools Used in Analysis
+                        <div style={{ padding: '1.5rem', background: 'linear-gradient(135deg, #1a1f2e 0%, #0f1419 100%)', borderRadius: '12px', border: '1px solid #3a3f4a', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
+                            <h3 style={{ fontSize: '1.3rem', marginTop: '0', marginBottom: '1.5rem', color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: '700', borderBottom: '2px solid #3a3f4a', paddingBottom: '0.75rem' }}>
+                                🛠️ AI Tools Used in Analysis
                             </h3>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '0.75rem' }}>
-                                {result.tool_calls.map((tool, i) => (
-                                    <div key={i} style={{ padding: '0.75rem', background: '#1a1f2e', borderRadius: '6px', border: '1px solid #2a3142' }}>
-                                        <div style={{ fontSize: '0.9rem', fontWeight: '600', color: '#60a5fa', marginBottom: '0.25rem' }}>
-                                            {tool.tool.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
+                                {result.tool_calls.map((tool, i) => {
+                                    const toolName = tool.name || tool.tool || 'Unknown Tool';
+                                    const toolIcon = getToolIcon(toolName);
+                                    const parsedOutput = parseToolOutput(tool.output || tool.output_preview || '{}');
+                                    
+                                    return (
+                                        <div key={i} style={{ 
+                                            padding: '1.25rem', 
+                                            background: 'linear-gradient(135deg, #1e2736 0%, #141820 100%)', 
+                                            borderRadius: '10px', 
+                                            border: '1px solid #2a3345',
+                                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                                            transition: 'all 0.3s ease',
+                                            cursor: 'pointer'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.transform = 'translateY(-2px)';
+                                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(96, 165, 250, 0.2)';
+                                            e.currentTarget.style.borderColor = '#60a5fa';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.transform = 'translateY(0)';
+                                            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                                            e.currentTarget.style.borderColor = '#2a3345';
+                                        }}>
+                                            {/* Tool Header */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', borderBottom: '1px solid #2a3345', paddingBottom: '0.75rem' }}>
+                                                <span style={{ fontSize: '1.5rem' }}>{toolIcon}</span>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontSize: '1rem', fontWeight: '700', color: '#60a5fa', marginBottom: '0.25rem' }}>
+                                                        {formatToolName(toolName)}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.75rem', color: '#8b92a0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                        Analysis Complete
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Tool Output */}
+                                            <div style={{ fontSize: '0.85rem', color: '#cbd5e0', lineHeight: '1.6' }}>
+                                                {parsedOutput}
+                                            </div>
                                         </div>
-                                        <div style={{ fontSize: '0.75rem', color: '#8b92a0' }}>
-                                            {tool.output_preview}
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     )}

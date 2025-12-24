@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -60,3 +60,4 @@ class RouteValidationResult(BaseModel):
     summary: str = Field(..., description="Human-readable explanation of validation/optimization")
     estimated_duration_hours: Optional[float] = Field(None, description="Estimated total route duration")
     estimated_distance_km: Optional[float] = Field(None, description="Estimated total distance")
+    tool_calls: Optional[list[dict[str, Any]]] = Field(None, description="List of AI tools used in analysis")
