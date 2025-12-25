@@ -25,24 +25,24 @@ export function ChatbotPanel() {
             category: "Weather"
         },
         {
-            icon: Calculator,
-            text: "Calculate metrics for a 150km route with 8 stops",
-            category: "Calculations"
+            icon: MapPin,
+            text: "How do I plan an optimal delivery route?",
+            category: "Route Planning"
         },
         {
             icon: TrendingUp,
-            text: "Optimize my delivery route stops for efficiency",
+            text: "What factors affect route efficiency?",
             category: "Optimization"
         },
         {
-            icon: MapPin,
-            text: "Check traffic conditions in Los Angeles",
-            category: "Traffic"
+            icon: Calculator,
+            text: "How is fuel consumption calculated?",
+            category: "Metrics"
         },
         {
             icon: Clock,
-            text: "Validate route timing for afternoon deliveries",
-            category: "Validation"
+            text: "What are best practices for time window management?",
+            category: "Tips"
         },
         {
             icon: MessageSquare,

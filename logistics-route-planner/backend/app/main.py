@@ -18,6 +18,7 @@ from app.routers.agent import router as agent_router
 from app.routers.chat import router as chat_router
 from app.routers.echo import router as echo_router
 from app.routers.gemini import router as gemini_router
+from app.routers.geocoding import router as geocoding_router
 from app.routers.planner import router as planner_router
 
 settings = get_settings()
@@ -40,6 +41,7 @@ app.include_router(agent_router)
 app.include_router(chat_router)
 app.include_router(echo_router)
 app.include_router(gemini_router)
+app.include_router(geocoding_router)
 app.include_router(planner_router)
 
 

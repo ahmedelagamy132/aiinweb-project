@@ -16,7 +16,7 @@ langchain-openai
 langchain-google-genai
 langgraph
 duckduckgo-search
-wikipedia
+wikipedia-api
 requests
 beautifulsoup4
 lxml
@@ -24,3 +24,4 @@ tavily-python
 arxiv
 pymupdf
 geopy
+googlemaps

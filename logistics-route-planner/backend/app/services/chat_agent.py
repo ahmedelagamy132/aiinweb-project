@@ -97,15 +97,35 @@ def run_chat_agent(question: str, db: Session) -> ChatResponse:
     # Weather tool
     if any(word in question_lower for word in ["weather", "temperature", "rain", "conditions", "forecast"]):
         from app.services.agent_tools import check_weather_conditions
-        # Extract location from question (simple heuristic)
-        location = "san francisco"  # default
-        for city in ["san francisco", "los angeles", "new york", "chicago", "houston"]:
-            if city in question_lower:
-                location = city
-                break
+        import re
+        
+        # Extract location from question using multiple strategies
+        location = None
+        
+        # Strategy 1: Look for "in <location>" or "at <location>"
+        location_match = re.search(r'\b(?:in|at|for)\s+([a-z\s,.-]+?)(?:\?|$|\s+(?:check|today|now|please))', question_lower)
+        if location_match:
+            location = location_match.group(1).strip()
+        
+        # Strategy 2: Check for known cities/countries
+        if not location:
+            known_places = [
+                "egypt", "cairo", "alexandria",
+                "san francisco", "los angeles", "new york", "chicago", "houston",
+                "london", "paris", "tokyo", "dubai", "singapore",
+                "boston", "seattle", "miami", "dallas", "denver"
+            ]
+            for place in known_places:
+                if place in question_lower:
+                    location = place
+                    break
+        
+        # Default fallback
+        if not location:
+            location = "san francisco"
         
         try:
-            result = check_weather_conditions.run(location)
+            result = check_weather_conditions.invoke({"location": location})
             tool_calls.append(ToolCall(tool="check_weather_conditions", arguments={"location": location}, output=result))
             tool_results["weather"] = result
         except Exception as e:
@@ -137,12 +157,23 @@ def run_chat_agent(question: str, db: Session) -> ChatResponse:
     if any(word in question_lower for word in ["traffic", "congestion", "delay", "rush hour"]):
         from app.services.agent_tools import check_traffic_conditions
         from datetime import datetime
+        import re
         
-        location = "downtown"
-        for city in ["san francisco", "los angeles", "new york", "chicago"]:
-            if city in question_lower:
-                location = city
-                break
+        # Extract location using same strategy as weather
+        location = None
+        location_match = re.search(r'\b(?:in|at|for)\s+([a-z\s,.-]+?)(?:\?|$|\s+(?:check|today|now|please))', question_lower)
+        if location_match:
+            location = location_match.group(1).strip()
+        
+        if not location:
+            known_places = ["egypt", "cairo", "san francisco", "los angeles", "new york", "chicago", "boston"]
+            for place in known_places:
+                if place in question_lower:
+                    location = place
+                    break
+        
+        if not location:
+            location = "downtown"
         
         time_of_day = datetime.now().strftime("%H:%M")
         if "morning" in question_lower:
@@ -151,7 +182,7 @@ def run_chat_agent(question: str, db: Session) -> ChatResponse:
             time_of_day = "17:00"
         
         try:
-            result = check_traffic_conditions.run(location=location, time_of_day=time_of_day)
+            result = check_traffic_conditions.invoke({"location": location, "time_of_day": time_of_day})
             tool_calls.append(ToolCall(tool="check_traffic_conditions", arguments={"location": location, "time_of_day": time_of_day}, output=result))
             tool_results["traffic"] = result
         except Exception as e:
@@ -164,6 +195,43 @@ def run_chat_agent(question: str, db: Session) -> ChatResponse:
     # Validation
     if any(word in question_lower for word in ["validate", "check", "verify", "feasible"]):
         tool_results["validation"] = "For route validation, please provide a RouteRequest with planned start time, stops, and constraints."
+    
+    # Web search for current events, news, or topics not in knowledge base
+    if any(word in question_lower for word in ["search", "find", "look up", "latest", "current", "news", "what is", "who is", "when did"]):
+        from app.services.agent_tools import web_search
+        try:
+            # Extract search query - remove question words
+            search_query = question_lower
+            for prefix in ["search for", "find", "look up", "what is", "who is", "tell me about", "when did"]:
+                if question_lower.startswith(prefix):
+                    search_query = question_lower[len(prefix):].strip()
+                    break
+            
+            result = web_search.invoke({"query": search_query, "num_results": 3})
+            tool_calls.append(ToolCall(tool="web_search", arguments={"query": search_query}, output=result))
+            tool_results["web_search"] = result
+        except Exception as e:
+            tool_results["web_search"] = f"Error: {e}"
+    
+    # Wikipedia for encyclopedia information
+    if any(word in question_lower for word in ["wikipedia", "encyclopedia", "definition", "explain", "what are", "history of", "about"]):
+        from app.services.agent_tools import wikipedia_search
+        try:
+            # Extract topic
+            wiki_query = question_lower
+            for prefix in ["tell me about", "what is", "what are", "explain", "define", "wikipedia"]:
+                if question_lower.startswith(prefix):
+                    wiki_query = question_lower[len(prefix):].strip()
+                    break
+            
+            # Remove question marks and clean up
+            wiki_query = wiki_query.replace("?", "").strip()
+            
+            result = wikipedia_search.invoke({"query": wiki_query})
+            tool_calls.append(ToolCall(tool="wikipedia_search", arguments={"query": wiki_query}, output=result))
+            tool_results["wikipedia"] = result
+        except Exception as e:
+            tool_results["wikipedia"] = f"Error: {e}"
     
     # Build context for LLM
     tool_context = ""

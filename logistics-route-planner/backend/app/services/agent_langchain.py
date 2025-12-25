@@ -42,7 +42,8 @@ class AgentToolCall(BaseModel):
     """Trace of a tool invocation the agent performed."""
     tool: str
     arguments: dict[str, Any]
-    output_preview: str
+    output: str  # Full output from the tool
+    output_preview: str  # Truncated version for quick viewing
 
 
 class RAGContext(BaseModel):
@@ -50,6 +51,141 @@ class RAGContext(BaseModel):
     content: str
     source: str
     score: float
+
+
+def _safe_json_loads(value: Any) -> Any:
+    """Safely load JSON content if the value is a JSON string."""
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        return value
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except Exception:
+            return None
+    return None
+
+
+def _format_metric(value: Any, suffix: str, precision: int = 2) -> str | None:
+    """Format numeric metrics with consistent precision."""
+    if isinstance(value, (int, float)):
+        formatted = f"{value:.{precision}f}" if isinstance(value, float) else str(value)
+        return f"{formatted}{suffix}"
+    return None
+
+
+def _build_structured_action_plan(
+    route_request: RouteRequest,
+    validation_result: RouteValidationResult,
+    tool_payloads: dict[str, Any],
+    resolved_locations: dict[str, str] | None = None
+) -> list[str]:
+    """Create a deterministic, data-backed execution plan for the dispatcher."""
+    plan: list[str] = []
+
+    # Resolve start location to city name if we have it
+    start_display = route_request.start_location
+    if resolved_locations and "start" in resolved_locations:
+        start_display = f"{resolved_locations['start']} ({route_request.start_location})"
+
+    stop_map = {stop.stop_id: stop for stop in route_request.stops}
+    if validation_result.optimized_stop_order:
+        ordered_stops = [stop_map.get(stop_id) for stop_id in validation_result.optimized_stop_order if stop_map.get(stop_id)]
+    else:
+        ordered_stops = sorted(route_request.stops, key=lambda s: s.sequence_number)
+
+    if ordered_stops:
+        route_segments = []
+        for stop in ordered_stops:
+            stop_display = stop.location
+            if resolved_locations and stop.stop_id in resolved_locations:
+                stop_display = f"{resolved_locations[stop.stop_id]} ({stop.location})"
+            route_segments.append(f"{stop.stop_id} ({stop_display})")
+        
+        plan.append(
+            f"Plot the delivery path on MapBox: start at {start_display} → "
+            + " → ".join(route_segments)
+        )
+
+    metrics_data = tool_payloads.get("metrics") or {}
+    if isinstance(metrics_data, dict) and metrics_data:
+        metrics_parts: list[str] = []
+        for key, suffix in (("distance_km", " km"), ("estimated_time_hours", " h"), ("fuel_consumption_liters", " L")):
+            formatted = _format_metric(metrics_data.get(key), suffix)
+            if formatted:
+                metrics_parts.append(formatted)
+        fuel_cost = metrics_data.get("estimated_fuel_cost_usd")
+        if isinstance(fuel_cost, (int, float)):
+            metrics_parts.append(f"${fuel_cost:.2f} fuel cost")
+        co2 = metrics_data.get("co2_emissions_kg")
+        if isinstance(co2, (int, float)):
+            metrics_parts.append(f"{co2:.2f} kg CO₂")
+        if metrics_parts:
+            plan.append("Review MapBox metrics: " + ", ".join(metrics_parts))
+
+    weather_data = tool_payloads.get("weather") or {}
+    if isinstance(weather_data, dict) and weather_data:
+        cond = weather_data.get("current_conditions") or weather_data.get("conditions")
+        temp = weather_data.get("temperature_celsius")
+        wind = weather_data.get("wind_speed_mph")
+        impact = weather_data.get("delivery_impact")
+        weather_parts = []
+        if cond:
+            weather_parts.append(cond)
+        if isinstance(temp, (int, float)):
+            weather_parts.append(f"{temp:.1f}°C")
+        if isinstance(wind, (int, float)):
+            weather_parts.append(f"wind {wind:.1f} mph")
+        impact_text = f" Impact: {impact}" if impact else ""
+        if weather_parts or impact_text:
+            plan.append(
+                f"Brief the driver on conditions near {route_request.start_location}: "
+                + ", ".join(weather_parts)
+                + impact_text
+            )
+
+    traffic_data = tool_payloads.get("traffic") or {}
+    if isinstance(traffic_data, dict) and traffic_data:
+        level = traffic_data.get("traffic_level")
+        delay_factor = traffic_data.get("delay_factor")
+        delay_minutes = traffic_data.get("delay_minutes") or traffic_data.get("estimated_delay_minutes")
+        traffic_parts = []
+        if level:
+            traffic_parts.append(level)
+        if isinstance(delay_factor, (int, float)):
+            traffic_parts.append(f"delay factor {delay_factor:.2f}x")
+        if isinstance(delay_minutes, (int, float)) and delay_minutes > 0:
+            traffic_parts.append(f"~{delay_minutes:.1f} min extra")
+        if traffic_parts:
+            plan.append("Incorporate MapBox traffic insights: " + ", ".join(traffic_parts))
+
+    timing_data = tool_payloads.get("timing_validation") or {}
+    constraints = route_request.constraints
+    if isinstance(timing_data, dict) or constraints is not None:
+        timing_parts: list[str] = []
+        if isinstance(timing_data, dict):
+            if not timing_data.get("is_valid", True):
+                issues = timing_data.get("issues") or []
+                if issues:
+                    timing_parts.append(f"resolve timing issues ({'; '.join(issues[:2])})")
+        if constraints:
+            constraint_bits = []
+            if constraints.max_route_duration_hours is not None:
+                constraint_bits.append(f"max {constraints.max_route_duration_hours} h")
+            if constraints.driver_shift_end:
+                constraint_bits.append(f"shift end {constraints.driver_shift_end}")
+            if constraints.vehicle_capacity is not None:
+                constraint_bits.append(f"capacity {constraints.vehicle_capacity}")
+            if constraint_bits:
+                timing_parts.append("respect constraints: " + ", ".join(constraint_bits))
+        if timing_parts:
+            plan.append("Confirm schedule alignment: " + "; ".join(timing_parts))
+
+    if ordered_stops:
+        plan.append("Dispatch, follow the plotted sequence, and capture completion updates after each stop.")
+
+    return [step for step in plan if step]
 
 
 def _get_llm():
@@ -92,6 +228,25 @@ def run_route_validation_agent(
     # Get LLM
     llm = _get_llm()
     
+    # Resolve coordinates to city names for display
+    from app.services.agent_tools import reverse_geocode_mapbox
+    resolved_locations: dict[str, str] = {}
+    
+    # Resolve start location if it has coordinates
+    if hasattr(route_request, 'start_latitude') and hasattr(route_request, 'start_longitude'):
+        if route_request.start_latitude and route_request.start_longitude:
+            geo_result = reverse_geocode_mapbox(route_request.start_latitude, route_request.start_longitude)
+            if geo_result:
+                resolved_locations["start"] = geo_result.get("formatted", geo_result.get("city", ""))
+    
+    # Resolve stop locations if they have coordinates
+    for stop in route_request.stops:
+        if hasattr(stop, 'latitude') and hasattr(stop, 'longitude'):
+            if stop.latitude and stop.longitude:
+                geo_result = reverse_geocode_mapbox(stop.latitude, stop.longitude)
+                if geo_result:
+                    resolved_locations[stop.stop_id] = geo_result.get("formatted", geo_result.get("city", ""))
+    
     # Get all available real tools
     tools = get_all_tools()
     
@@ -115,6 +270,7 @@ def run_route_validation_agent(
                 AgentToolCall(
                     tool="check_weather_conditions",
                     arguments={"location": route_request.start_location},
+                    output=weather_result,
                     output_preview=weather_result[:200] + "..." if len(weather_result) > 200 else weather_result,
                 )
             )
@@ -161,8 +317,17 @@ def run_route_validation_agent(
                         total_distance_km += random.uniform(8, 18)
                 
                 route_data = {
-                    "distance_km": round(total_distance_km, 2),
-                    "stops": len(route_request.stops),
+                    "start_location": route_request.start_location,
+                    "start_latitude": getattr(route_request, "start_latitude", None),
+                    "start_longitude": getattr(route_request, "start_longitude", None),
+                    "stops": [
+                        {
+                            "location": stop.location,
+                            "latitude": getattr(stop, "latitude", None),
+                            "longitude": getattr(stop, "longitude", None),
+                        }
+                        for stop in route_request.stops
+                    ],
                     "area_type": "urban",
                     "vehicle_type": route_request.vehicle_type or "van"
                 }
@@ -172,6 +337,7 @@ def run_route_validation_agent(
                     AgentToolCall(
                         tool="calculate_route_metrics",
                         arguments=route_data,
+                        output=metrics_result,  # Full output
                         output_preview=metrics_result[:200] + "..." if len(metrics_result) > 200 else metrics_result,
                     )
                 )
@@ -192,6 +358,7 @@ def run_route_validation_agent(
                     AgentToolCall(
                         tool="validate_route_timing",
                         arguments={"route_id": route_request.route_id},
+                        output=timing_result,
                         output_preview=timing_result[:200] + "..." if len(timing_result) > 200 else timing_result,
                     )
                 )
@@ -211,6 +378,7 @@ def run_route_validation_agent(
                     AgentToolCall(
                         tool="optimize_stop_sequence",
                         arguments={"route_id": route_request.route_id},
+                        output=optimization_result,
                         output_preview=optimization_result[:200] + "..." if len(optimization_result) > 200 else optimization_result,
                     )
                 )
@@ -234,6 +402,7 @@ def run_route_validation_agent(
                 AgentToolCall(
                     tool="check_traffic_conditions",
                     arguments={"location": route_request.start_location, "time_of_day": time_of_day},
+                    output=traffic_result,
                     output_preview=traffic_result[:200] + "..." if len(traffic_result) > 200 else traffic_result,
                 )
             )
@@ -247,6 +416,7 @@ def run_route_validation_agent(
                 AgentToolCall(
                     tool="rag_retrieval",
                     arguments={"query": "route planning best practices", "k": 3},
+                    output=json.dumps({"document_count": len(rag_contexts), "status": "success"}),
                     output_preview=f"Retrieved {len(rag_contexts)} relevant documents",
                 )
             )
@@ -256,54 +426,72 @@ def run_route_validation_agent(
             f"=== {key.upper()} ===\n{value}"
             for key, value in tool_results.items()
         ])
-        
+
         if rag_contexts:
             rag_text = "\n".join([f"- ({ctx.source}) {ctx.content[:200]}..." for ctx in rag_contexts])
             tool_context += f"\n\n=== KNOWLEDGE BASE ===\n{rag_text}"
-        
+
+        # Build detailed stop snapshot for the LLM
+        stop_summaries = []
+        for stop in route_request.stops:
+            window = f"{stop.time_window_start or '—'} to {stop.time_window_end or '—'}"
+            coords = f"lat={getattr(stop, 'latitude', None)}, lon={getattr(stop, 'longitude', None)}"
+            
+            # Add city name if resolved
+            location_display = stop.location
+            if resolved_locations.get(stop.stop_id):
+                location_display = f"{resolved_locations[stop.stop_id]} ({stop.location})"
+            
+            stop_summaries.append(
+                f"{stop.stop_id}: {location_display} | seq={stop.sequence_number} | priority={stop.priority} | window={window} | {coords}"
+            )
+        stops_detail = "\n".join(stop_summaries) if stop_summaries else "No stops supplied"
+
         # Create prompt for route validation
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert logistics route validation AI.
+            ("system", """You are an expert logistics route validation AI with access to reliable tool outputs (weather, traffic, metrics, timing, optimization).
 
-Based on the tool results below, analyze the route and provide:
-1. Whether the route is VALID (can be executed successfully) or INVALID
-2. List of specific ISSUES found (timing problems, constraint violations, weather risks)
-3. List of RECOMMENDATIONS for improvement
-4. If optimization was requested, provide the optimized stop order
+    Use the provided data to evaluate the route's feasibility and recommend improvements. When you cite specifics, pull exact numbers from the tool outputs.
 
-Respond in this format:
-VALID: true/false
-ISSUE: <specific problem>
-ISSUE: <specific problem>
-RECOMMENDATION: <actionable suggestion>
-RECOMMENDATION: <actionable suggestion>
-OPTIMIZED_ORDER: stop_id1,stop_id2,stop_id3
-SUMMARY: <brief human-readable explanation>"""),
+    Respond strictly in this format (omit lines that do not apply):
+    VALID: true/false
+    ISSUE: <specific problem>
+    RECOMMENDATION: <actionable suggestion>
+    OPTIMIZED_ORDER: stop_id1,stop_id2,stop_id3
+    SUMMARY: <brief human-readable explanation>"""),
             ("human", """Tool Results:
 {tool_context}
 
-Route Request:
+Route Overview:
 - Route ID: {route_id}
 - Start: {start_location} at {planned_start_time}
 - Vehicle: {vehicle_id}
-- Stops: {num_stops} deliveries
 - Task: {task}
 - Constraints: {constraints}
 
-Please validate this route.""")
+Stops Detail:
+{stops_detail}
+
+    Provide your validation and recommendations based on these facts.""")
         ])
         
         # Invoke LLM
         chain = prompt | llm
+        
+        # Format start location with city name if available
+        start_location_display = route_request.start_location
+        if resolved_locations.get("start"):
+            start_location_display = f"{resolved_locations['start']} ({route_request.start_location})"
+        
         response = chain.invoke({
             "tool_context": tool_context,
             "route_id": route_request.route_id,
-            "start_location": route_request.start_location,
+            "start_location": start_location_display,
             "planned_start_time": route_request.planned_start_time,
             "vehicle_id": route_request.vehicle_id or "unassigned",
-            "num_stops": len(route_request.stops),
             "task": route_request.task,
             "constraints": json.dumps(route_request.constraints.model_dump() if route_request.constraints else {}),
+            "stops_detail": stops_detail,
         })
         
         # Extract text content from response
@@ -322,6 +510,21 @@ Please validate this route.""")
             tool_results,
             tool_calls=[tc.model_dump() for tc in tool_calls]
         )
+
+        parsed_payloads = {
+            "weather": _safe_json_loads(tool_results.get("weather")),
+            "metrics": _safe_json_loads(tool_results.get("metrics")),
+            "traffic": _safe_json_loads(tool_results.get("traffic")),
+            "timing_validation": _safe_json_loads(tool_results.get("timing_validation")),
+            "optimization": _safe_json_loads(tool_results.get("optimization")),
+        }
+
+        validation_result.action_plan = _build_structured_action_plan(
+            route_request,
+            validation_result,
+            parsed_payloads,
+            resolved_locations,
+        )
         
         # Persist to database
         if db is not None:
@@ -330,13 +533,21 @@ Please validate this route.""")
                 for ctx in rag_contexts
             ]
             
+            recommended_actions_payload = [
+                {"title": f"Step {idx + 1}", "detail": step, "priority": "high"}
+                for idx, step in enumerate(validation_result.action_plan)
+            ] + [
+                {"title": rec, "detail": rec, "priority": "medium"}
+                for rec in validation_result.recommendations
+            ]
+
             agent_run = AgentRun(
                 route_slug=route_request.route_id,
                 audience_role="dispatcher",
                 audience_experience="advanced",
                 summary=validation_result.summary,
                 gemini_insight=agent_output,
-                recommended_actions=[{"title": rec, "detail": rec, "priority": "medium"} for rec in validation_result.recommendations],
+                recommended_actions=recommended_actions_payload,
                 tool_calls=[tc.model_dump() for tc in tool_calls],
                 rag_contexts=[ctx.model_dump() for ctx in rag_context_response],
                 used_gemini=True,
@@ -359,6 +570,7 @@ def _parse_validation_result(agent_output: str, route_request: RouteRequest, too
     is_valid = True
     issues = []
     recommendations = []
+    action_plan: list[str] = []
     optimized_stop_order = None
     summary = ""
     estimated_duration_hours = None
@@ -423,6 +635,7 @@ def _parse_validation_result(agent_output: str, route_request: RouteRequest, too
         is_valid=is_valid,
         issues=issues,
         recommendations=recommendations,
+        action_plan=action_plan,
         optimized_stop_order=optimized_stop_order,
         summary=summary,
         estimated_duration_hours=estimated_duration_hours,

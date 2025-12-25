@@ -73,14 +73,52 @@ function formatToolName(toolName) {
 
 function parseToolOutput(output) {
     try {
-        // Try to parse JSON
-        const data = typeof output === 'string' ? JSON.parse(output) : output;
+        // Try to parse JSON - handle double-encoded JSON
+        let data = output;
+        if (typeof output === 'string') {
+            try {
+                data = JSON.parse(output);
+                // Check if it's double-encoded (string inside string)
+                if (typeof data === 'string') {
+                    data = JSON.parse(data);
+                }
+            } catch (e) {
+                console.log('Failed to parse tool output as JSON:', e);
+                return <div style={{ fontSize: '0.8rem', color: '#fca5a5' }}>Failed to parse output</div>;
+            }
+        }
+        
+        // Handle null or undefined data
+        if (!data || typeof data !== 'object') {
+            return <div style={{ fontSize: '0.8rem', color: '#8b92a0' }}>No data available</div>;
+        }
+        
+        // Handle error responses
+        if (data.error) {
+            return (
+                <div style={{ padding: '0.5rem', background: '#2d1f1f', borderRadius: '4px', borderLeft: '3px solid #ef4444' }}>
+                    <div style={{ color: '#fca5a5', fontSize: '0.8rem', fontWeight: '600' }}>❌ Error</div>
+                    <div style={{ color: '#fca5a5', fontSize: '0.75rem', marginTop: '0.25rem' }}>{data.error}</div>
+                </div>
+            );
+        }
         
         // Format based on tool type
         const entries = [];
         
         // Weather data
-        if (data.location && data.temperature_celsius !== undefined) {
+        if (data.location && (data.temperature_celsius !== undefined || data.temperature_f !== undefined)) {
+            const tempC = data.temperature_celsius !== undefined && data.temperature_celsius !== null
+                ? data.temperature_celsius
+                : data.temperature_f !== undefined && data.temperature_f !== null
+                    ? ((data.temperature_f - 32) * 5) / 9
+                    : undefined;
+            const tempF = data.temperature_f !== undefined && data.temperature_f !== null
+                ? data.temperature_f
+                : data.temperature_celsius !== undefined && data.temperature_celsius !== null
+                    ? (data.temperature_celsius * 9) / 5 + 32
+                    : undefined;
+            const conditions = data.current_conditions || data.conditions;
             entries.push(
                 <div key="location" style={{ marginBottom: '0.5rem' }}>
                     <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>📍 Location:</span>
@@ -88,19 +126,52 @@ function parseToolOutput(output) {
                 </div>,
                 <div key="temp" style={{ marginBottom: '0.5rem' }}>
                     <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>🌡️ Temperature:</span>
-                    <span style={{ color: '#60a5fa', marginLeft: '0.5rem', fontWeight: '600' }}>{data.temperature_celsius}°C</span>
+                    <span style={{ color: '#60a5fa', marginLeft: '0.5rem', fontWeight: '600' }}>
+                        {tempC !== undefined ? `${Number(tempC).toFixed(1)}°C` : '—'}
+                        {tempF !== undefined ? ` / ${Number(tempF).toFixed(1)}°F` : ''}
+                    </span>
                 </div>,
                 <div key="conditions" style={{ marginBottom: '0.5rem' }}>
                     <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>☁️ Conditions:</span>
-                    <span style={{ color: '#86efac', marginLeft: '0.5rem' }}>{data.current_conditions}</span>
+                    <span style={{ color: '#86efac', marginLeft: '0.5rem' }}>{conditions || 'Unavailable'}</span>
                 </div>
             );
+            if (data.humidity_percent !== undefined && data.humidity_percent !== null) {
+                entries.push(
+                    <div key="humidity" style={{ marginBottom: '0.5rem' }}>
+                        <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>💧 Humidity:</span>
+                        <span style={{ color: '#93c5fd', marginLeft: '0.5rem' }}>{Math.round(Number(data.humidity_percent))}%</span>
+                    </div>
+                );
+            }
+            if ((data.wind_speed_mph !== undefined && data.wind_speed_mph !== null) || (data.wind_speed_kph !== undefined && data.wind_speed_kph !== null)) {
+                entries.push(
+                    <div key="wind" style={{ marginBottom: '0.5rem' }}>
+                        <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>🍃 Wind:</span>
+                        <span style={{ color: '#fbbf24', marginLeft: '0.5rem' }}>
+                            {data.wind_speed_mph !== undefined && data.wind_speed_mph !== null ? `${Number(data.wind_speed_mph).toFixed(1)} mph` : '—'}
+                            {data.wind_speed_kph !== undefined && data.wind_speed_kph !== null ? ` / ${Number(data.wind_speed_kph).toFixed(1)} kph` : ''}
+                        </span>
+                    </div>
+                );
+            }
+            if (data.precipitation_mm !== undefined && data.precipitation_mm !== null) {
+                entries.push(
+                    <div key="precip" style={{ marginBottom: '0.5rem' }}>
+                        <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>🌧️ Precipitation (1h):</span>
+                        <span style={{ color: '#cbd5e0', marginLeft: '0.5rem' }}>{Number(data.precipitation_mm).toFixed(2)} mm</span>
+                    </div>
+                );
+            }
             if (data.alert_level) {
                 entries.push(
                     <div key="alert" style={{ marginTop: '0.75rem', padding: '0.5rem', background: data.alert_level === 'normal' ? '#1f2d1f' : '#2d1f1f', borderRadius: '4px', borderLeft: `3px solid ${data.alert_level === 'normal' ? '#10b981' : '#ef4444'}` }}>
-                        <span style={{ color: data.alert_level === 'normal' ? '#86efac' : '#fca5a5', fontSize: '0.8rem', fontWeight: '600' }}>
+                        <div style={{ color: data.alert_level === 'normal' ? '#86efac' : '#fca5a5', fontSize: '0.8rem', fontWeight: '600' }}>
                             {data.alert_level === 'normal' ? '✅ Safe Conditions' : '⚠️ Alert'}
-                        </span>
+                        </div>
+                        {data.delivery_impact && (
+                            <div style={{ color: '#cbd5e0', fontSize: '0.75rem', marginTop: '0.25rem' }}>{data.delivery_impact}</div>
+                        )}
                     </div>
                 );
             }
@@ -152,7 +223,38 @@ function parseToolOutput(output) {
             }
         }
         
-        // Optimization data
+        // Optimization data - handles both old format and new LLM-based format
+        else if (data.status === 'no_optimization_needed' || data.status === 'ready_for_optimization') {
+            entries.push(
+                <div key="status" style={{ marginBottom: '0.75rem', padding: '0.5rem', background: '#1f2d1f', borderRadius: '4px' }}>
+                    <span style={{ color: '#86efac', fontWeight: '600', fontSize: '0.85rem' }}>
+                        {data.status === 'no_optimization_needed' ? '✅ No Optimization Needed' : '🔄 Ready for Optimization'}
+                    </span>
+                </div>
+            );
+            if (data.reason) {
+                entries.push(
+                    <div key="reason" style={{ fontSize: '0.8rem', color: '#a0aec0', marginBottom: '0.5rem' }}>
+                        {data.reason}
+                    </div>
+                );
+            }
+            if (data.stop_count !== undefined) {
+                entries.push(
+                    <div key="count" style={{ fontSize: '0.8rem', color: '#8b92a0' }}>
+                        📦 Stops: <span style={{ color: '#cbd5e0', fontWeight: '600' }}>{data.stop_count}</span>
+                    </div>
+                );
+            }
+            if (data.total_stops !== undefined) {
+                entries.push(
+                    <div key="total" style={{ fontSize: '0.8rem', color: '#8b92a0' }}>
+                        📦 Total Stops: <span style={{ color: '#cbd5e0', fontWeight: '600' }}>{data.total_stops}</span>
+                    </div>
+                );
+            }
+        }
+        // Old optimization format (for backward compatibility)
         else if (data.optimized_sequence) {
             entries.push(
                 <div key="optimized" style={{ marginBottom: '0.5rem' }}>
@@ -187,28 +289,85 @@ function parseToolOutput(output) {
                     </span>
                 </div>
             );
-            if (data.estimated_delay_minutes) {
+            if (data.delay_factor !== undefined) {
+                entries.push(
+                    <div key="factor" style={{ marginBottom: '0.5rem' }}>
+                        <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>⚡ Delay Factor:</span>
+                        <span style={{ color: '#fbbf24', marginLeft: '0.5rem', fontWeight: '600' }}>{data.delay_factor.toFixed(2)}x</span>
+                    </div>
+                );
+            }
+            if (data.estimated_delay_minutes !== undefined && data.estimated_delay_minutes > 0) {
                 entries.push(
                     <div key="delay" style={{ marginBottom: '0.5rem' }}>
-                        <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>⏳ Delay:</span>
+                        <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>⏳ Extra Time:</span>
                         <span style={{ color: '#fbbf24', marginLeft: '0.5rem', fontWeight: '600' }}>+{data.estimated_delay_minutes} min</span>
+                    </div>
+                );
+            }
+            if (data.recommendation) {
+                entries.push(
+                    <div key="recommendation" style={{ marginTop: '0.75rem', padding: '0.5rem', background: '#1f2d1f', borderRadius: '4px', borderLeft: '3px solid #10b981', fontSize: '0.75rem', color: '#86efac' }}>
+                        💡 {data.recommendation}
                     </div>
                 );
             }
         }
         
-        // Fallback: show first 3-4 key fields
+        // RAG retrieval data
+        else if (data.retrieved_documents !== undefined || data.document_count !== undefined) {
+            if (data.document_count !== undefined) {
+                entries.push(
+                    <div key="doc_count" style={{ marginBottom: '0.5rem' }}>
+                        <span style={{ color: '#8b92a0', fontSize: '0.8rem' }}>📚 Documents:</span>
+                        <span style={{ color: '#10b981', marginLeft: '0.5rem', fontWeight: '700', fontSize: '1.1rem' }}>{data.document_count}</span>
+                    </div>
+                );
+            }
+            if (data.query) {
+                entries.push(
+                    <div key="query" style={{ marginBottom: '0.5rem', fontSize: '0.75rem' }}>
+                        <span style={{ color: '#8b92a0' }}>🔍 Query:</span>
+                        <div style={{ color: '#93c5fd', marginTop: '0.25rem', fontStyle: 'italic' }}>"{data.query}"</div>
+                    </div>
+                );
+            }
+            if (data.status === 'success') {
+                entries.push(
+                    <div key="status" style={{ marginTop: '0.5rem', padding: '0.5rem', background: '#1f2d1f', borderRadius: '4px', borderLeft: '3px solid #10b981' }}>
+                        <span style={{ color: '#86efac', fontSize: '0.75rem', fontWeight: '600' }}>✅ Retrieved Successfully</span>
+                    </div>
+                );
+            }
+        }
+        
+        // Fallback: show first 5-6 key fields in readable format
         if (entries.length === 0) {
-            Object.entries(data).slice(0, 4).forEach(([key, value]) => {
-                if (typeof value !== 'object') {
+            Object.entries(data).slice(0, 6).forEach(([key, value]) => {
+                // Skip internal fields, null values, objects, and arrays
+                if (typeof value !== 'object' && value !== null && value !== undefined && !key.startsWith('_')) {
+                    const displayKey = key.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                    // Truncate long strings
+                    const displayValue = String(value).length > 100 ? String(value).substring(0, 100) + '...' : String(value);
                     entries.push(
-                        <div key={key} style={{ marginBottom: '0.3rem', fontSize: '0.8rem' }}>
-                            <span style={{ color: '#8b92a0' }}>{key.replace(/_/g, ' ')}:</span>
-                            <span style={{ color: '#cbd5e0', marginLeft: '0.5rem' }}>{String(value)}</span>
+                        <div key={key} style={{ marginBottom: '0.4rem', fontSize: '0.8rem' }}>
+                            <span style={{ color: '#8b92a0', fontWeight: '500' }}>{displayKey}:</span>
+                            <span style={{ color: '#cbd5e0', marginLeft: '0.5rem' }}>{displayValue}</span>
                         </div>
                     );
                 }
             });
+        }
+        
+        // Add data source indicator at the bottom if available
+        if (data.data_source) {
+            const sourceColor = data.data_source.includes('mapbox') ? '#10b981' : 
+                               data.data_source.includes('google') ? '#60a5fa' : '#8b92a0';
+            entries.push(
+                <div key="data_source" style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #2a3345', fontSize: '0.7rem', color: sourceColor }}>
+                    📡 Data: {data.data_source.replace(/_/g, ' ')}
+                </div>
+            );
         }
         
         return <div>{entries}</div>;
@@ -293,6 +452,7 @@ export function AgentPanel() {
             time_window_start: '',
             time_window_end: '',
             priority: 'normal',
+            service_time_minutes: 10, // Default 10 minutes per stop
         };
         setStops(prev => [...prev, newStop]);
         stopCounterRef.current += 1;
@@ -370,8 +530,11 @@ export function AgentPanel() {
             const routeRequest = {
                 route_id: routeId,
                 start_location: startLocation,
+                start_latitude: startPoint?.lat ?? undefined,
+                start_longitude: startPoint?.lng ?? undefined,
                 planned_start_time: plannedStartTime + ':00Z', // Add timezone
                 vehicle_id: vehicleId || undefined,
+                vehicle_type: 'van', // Required for metrics calculation (van/truck/motorcycle)
                 stops: stops.map(stop => ({
                     stop_id: stop.stop_id,
                     location: stop.location,
@@ -379,6 +542,9 @@ export function AgentPanel() {
                     time_window_start: stop.time_window_start && stop.time_window_start.trim() !== '' ? stop.time_window_start : undefined,
                     time_window_end: stop.time_window_end && stop.time_window_end.trim() !== '' ? stop.time_window_end : undefined,
                     priority: stop.priority,
+                    service_time_minutes: stop.service_time_minutes || 10, // Include service time
+                    latitude: typeof stop.lat === 'number' ? stop.lat : undefined,
+                    longitude: typeof stop.lng === 'number' ? stop.lng : undefined,
                 })),
                 constraints: {
                     max_route_duration_hours: maxDuration,
@@ -439,8 +605,8 @@ export function AgentPanel() {
                         style={{ height: '100%', width: '100%' }}
                     >
                         <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            attribution='© <a href="https://www.mapbox.com/about/maps/">Mapbox</a>'
+                            url="https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoiYWhtZWRlbGFnYW15MTMyIiwiYSI6ImNtamt5NHR4ODI2dHYzZ3F4d2JjNDltbmcifQ.PXy1wcZgys6mjn-sV7sMeA"
                         />
                         <MapClickHandler onMapClick={handleMapClick} />
                         
@@ -777,6 +943,21 @@ export function AgentPanel() {
                         <p style={{ margin: '0', fontSize: '1rem', lineHeight: '1.6', color: '#e2e8f0' }}>{result.summary}</p>
                     </div>
 
+                    {result.action_plan && result.action_plan.length > 0 && (
+                        <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#132032', borderRadius: '8px', border: '1px solid #2b3b52' }}>
+                            <h3 style={{ fontSize: '1.1rem', marginTop: 0, marginBottom: '0.75rem', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                🗺️ Step-by-Step Plan
+                            </h3>
+                            <ol style={{ margin: 0, paddingLeft: '1.25rem', color: '#cbd5e0', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                {result.action_plan.map((step, index) => (
+                                    <li key={index} style={{ lineHeight: '1.6', background: '#0a0e14', borderRadius: '6px', padding: '0.6rem 0.75rem', borderLeft: '3px solid #60a5fa', listStyle: 'decimal' }}>
+                                        <span style={{ color: '#e2e8f0' }}>{step}</span>
+                                    </li>
+                                ))}
+                            </ol>
+                        </div>
+                    )}
+
                     {/* Grid Layout for Issues and Recommendations */}
                     <div style={{ display: 'grid', gridTemplateColumns: result.issues?.length > 0 && result.recommendations?.length > 0 ? '1fr 1fr' : '1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
                         {/* Issues */}
@@ -848,11 +1029,23 @@ export function AgentPanel() {
                             <h3 style={{ fontSize: '1.3rem', marginTop: '0', marginBottom: '1.5rem', color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: '700', borderBottom: '2px solid #3a3f4a', paddingBottom: '0.75rem' }}>
                                 🛠️ AI Tools Used in Analysis
                             </h3>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
                                 {result.tool_calls.map((tool, i) => {
                                     const toolName = tool.name || tool.tool || 'Unknown Tool';
                                     const toolIcon = getToolIcon(toolName);
-                                    const parsedOutput = parseToolOutput(tool.output || tool.output_preview || '{}');
+                                    // Handle different output field names and ensure we parse the actual output
+                                    let toolOutput = tool.output || tool.output_preview || tool.result || '{}';
+                                    const rawOutputString = typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput, null, 2);
+                                    // If output is already an object, use it; otherwise parse it
+                                    if (typeof toolOutput === 'string') {
+                                        try {
+                                            toolOutput = JSON.parse(toolOutput);
+                                        } catch (e) {
+                                            // Keep as string if parsing fails
+                                        }
+                                    }
+                                    const parsedOutput = parseToolOutput(toolOutput);
+                                    const previewText = rawOutputString.length > 300 ? `${rawOutputString.slice(0, 300)}…` : rawOutputString;
                                     
                                     return (
                                         <div key={i} style={{ 
@@ -888,6 +1081,10 @@ export function AgentPanel() {
                                             </div>
                                             
                                             {/* Tool Output */}
+                                            <div style={{ fontSize: '0.75rem', color: '#8b92a0', marginBottom: '0.75rem', padding: '0.5rem', background: '#0a0e14', borderRadius: '6px', border: '1px solid #2a3345' }}>
+                                                <strong style={{ color: '#60a5fa', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Output Preview:</strong>
+                                                <div style={{ marginTop: '0.35rem', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{previewText || 'No output provided.'}</div>
+                                            </div>
                                             <div style={{ fontSize: '0.85rem', color: '#cbd5e0', lineHeight: '1.6' }}>
                                                 {parsedOutput}
                                             </div>

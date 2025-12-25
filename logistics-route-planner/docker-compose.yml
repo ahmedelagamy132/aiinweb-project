@@ -25,7 +25,8 @@ services:
     volumes:
       - ./backend/app:/app/app
       - ./backend/alembic:/app/alembic
-      - ./backend/.env:/app/.env:ro
+    env_file:
+      - ./backend/.env
     environment:
       - DATABASE_URL=postgresql+psycopg2://logistics:logistics@db:5432/logistics
       - CORS_ORIGINS=http://localhost:5173,http://localhost:8080,http://localhost

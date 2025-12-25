@@ -17,6 +17,8 @@ class Settings:
     cors_origins: list[str]
     gemini_api_key: str | None
     groq_api_key: str | None
+    mapbox_api_key: str | None
+    google_maps_api_key: str | None
 
     def __init__(self) -> None:
         self.database_url = os.getenv(
@@ -26,6 +28,8 @@ class Settings:
         self.cors_origins = [origin.strip() for origin in origins.split(",") if origin.strip()]
         self.gemini_api_key = os.getenv("GEMINI_API_KEY")
         self.groq_api_key = os.getenv("GROQ_API_KEY")
+        self.mapbox_api_key = os.getenv("MAPBOX_API_KEY")
+        self.google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY")
 
 
 # Create a single instance that will be imported everywhere

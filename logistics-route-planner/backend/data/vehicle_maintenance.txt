@@ -1,0 +1,189 @@
+# Vehicle Maintenance and Fleet Management
+
+## Daily Vehicle Inspection Checklist
+Drivers must complete pre-trip and post-trip inspections:
+- Tire condition and pressure (32-35 PSI for cargo vans)
+- Brake function and responsiveness
+- All lights operational: headlights, brake lights, turn signals
+- Mirrors adjusted and clean
+- Windshield and windows clean, no cracks
+- Fluid levels: oil, coolant, washer fluid, brake fluid
+- Battery connections secure, no corrosion
+- No visible leaks under vehicle
+- Cargo area clean and organized
+- Safety equipment present: first aid kit, fire extinguisher, warning triangles
+- Registration and insurance documents current
+- Vehicle exterior free of damage (document any new damage)
+
+## Preventive Maintenance Schedule
+Regular maintenance prevents costly breakdowns:
+- Oil changes: every 5,000 km or 3 months
+- Tire rotation: every 10,000 km
+- Brake inspection: every 15,000 km
+- Air filter replacement: every 20,000 km
+- Transmission service: every 50,000 km
+- Coolant flush: every 50,000 km or 2 years
+- Timing belt replacement: every 100,000 km
+- Battery replacement: every 3-5 years
+- Spark plugs: every 50,000-100,000 km
+- Suspension inspection: annually
+
+## Fuel Efficiency Best Practices
+Optimize fuel consumption to reduce operating costs:
+- Maintain steady speeds, use cruise control on highways
+- Avoid rapid acceleration and hard braking
+- Reduce idling time (turn off engine for stops over 1 minute)
+- Maintain proper tire pressure (improves MPG by 3%)
+- Remove unnecessary weight from vehicle
+- Use recommended grade of motor oil
+- Keep engine properly tuned
+- Close windows at highway speeds
+- Plan routes to minimize left turns (reduces idling at lights)
+- Coast to stops when safe and practical
+
+## Vehicle Troubleshooting Guide
+Common issues and immediate responses:
+- **Check engine light**: note any performance changes, schedule service within 1 week
+- **Low tire pressure warning**: inspect tire, inflate or report puncture
+- **Overheating**: pull over safely, turn off engine, do not open radiator cap
+- **Unusual noises**: document sound location and conditions, report immediately
+- **Brake warning light**: reduce speed, test brakes gently, return to depot
+- **Battery warning light**: minimize electrical use, drive directly to service
+- **Reduced power**: likely limp mode, safe to drive slowly, schedule service
+- **Transmission issues**: avoid sudden movements, return to depot immediately
+- **Exhaust smoke**: white=coolant leak, blue=oil burning, black=rich fuel mixture
+
+## Accident and Incident Reporting
+Proper documentation protects drivers and company:
+- Ensure safety of all parties first
+- Call emergency services if injuries or major damage
+- Exchange information with other parties
+- Take photos of all vehicles, damage, scene context
+- Collect witness contact information
+- Do not admit fault or sign statements
+- Complete company accident report within 24 hours
+- Report to insurance within required timeframe
+- Attend company safety review meeting
+- Follow up on required drug/alcohol testing
+
+## Seasonal Maintenance Considerations
+Adjust maintenance for seasonal conditions:
+**Winter Preparation (October-November):**
+- Install winter tires or check all-weather tread depth (minimum 4mm)
+- Test battery (cold weather reduces capacity)
+- Check antifreeze concentration (-35°C protection)
+- Inspect heating system and defrosters
+- Stock winter emergency kit: blanket, shovel, sand/salt
+- Verify wiper blades and winter washer fluid
+- Apply rust protection treatment
+
+**Summer Preparation (April-May):**
+- Check air conditioning system
+- Inspect cooling system for leaks
+- Verify radiator cap holds pressure
+- Check drive belts for wear
+- Switch to summer washer fluid
+- Inspect suspension (winter damage)
+- Clean/inspect undercarriage
+
+## Fleet Vehicle Selection
+Choose appropriate vehicles for delivery operations:
+**Cargo Van (1,200-1,500 kg capacity):**
+- Best for: urban residential, small packages
+- Pros: fuel efficient, easy parking, lower costs
+- Cons: limited capacity for bulky items
+- Typical MPG: 12-16
+
+**Box Truck (3,000-4,500 kg capacity):**
+- Best for: commercial deliveries, furniture, appliances
+- Pros: large capacity, loading dock height
+- Cons: higher fuel costs, parking challenges
+- Typical MPG: 8-12
+
+**Step Van (2,000-3,000 kg capacity):**
+- Best for: high-stop density routes, package delivery
+- Pros: easy entry/exit, organized shelving
+- Cons: poor highway efficiency, higher initial cost
+- Typical MPG: 10-13
+
+**Refrigerated Van (1,000-1,200 kg capacity):**
+- Best for: food, pharmaceuticals, perishables
+- Pros: temperature control, maintains product integrity
+- Cons: expensive, higher fuel consumption
+- Typical MPG: 9-12
+
+## Telematics and Fleet Tracking
+Modern fleet management uses technology:
+- GPS tracking for real-time vehicle location
+- Diagnostic monitoring: engine codes, maintenance alerts
+- Driver behavior tracking: harsh braking, speeding, idling
+- Fuel consumption monitoring and reporting
+- Geofencing for unauthorized vehicle use
+- Route replay for training and optimization
+- Automated maintenance scheduling
+- Vehicle utilization analytics
+- Mobile driver communication
+
+## Cost Management
+Control and reduce fleet operating expenses:
+- Fuel costs: $0.15-0.25 per km (largest expense)
+- Maintenance: $0.08-0.15 per km
+- Insurance: $2,000-5,000 per vehicle annually
+- Registration and licensing: $300-800 annually
+- Depreciation: 15-25% annually for first 5 years
+- Replacement cycle: 5-7 years or 200,000-300,000 km
+- Total cost of ownership: $0.40-0.70 per km
+- Utilization target: 85-92% of available hours
+
+## Safety Equipment Requirements
+Mandatory safety items for delivery vehicles:
+- First aid kit (ANSI Type A minimum)
+- Fire extinguisher (5 lb ABC rated)
+- Warning triangles or flares (3 required)
+- High-visibility safety vest for driver
+- Flashlight with extra batteries
+- Tire pressure gauge
+- Basic tool kit
+- Jumper cables or jump starter
+- Tow strap or chain
+- Ice scraper and snow brush (seasonal)
+- Emergency contact information
+
+## Driver Training Requirements
+Ensure drivers are qualified and trained:
+- Valid commercial driver's license (if required)
+- Clean driving record (no major violations within 3 years)
+- DOT medical certification (for vehicles over 4,500 kg)
+- Defensive driving course certification
+- Vehicle-specific training for specialized equipment
+- Annual refresher training on safety protocols
+- Cargo securement training
+- Hazmat certification (if transporting regulated materials)
+- Customer service training
+- Technology systems training
+
+## Environmental Compliance
+Meet environmental regulations and sustainability goals:
+- Emissions testing per local regulations
+- Proper disposal of oil, filters, batteries, tires
+- DEF (diesel exhaust fluid) for diesel vehicles
+- Spill prevention and response procedures
+- Idle reduction policies (no more than 5 minutes)
+- Alternative fuel vehicle options: hybrid, electric, CNG
+- Route optimization to reduce miles driven
+- Vehicle right-sizing to match delivery requirements
+- Carbon footprint tracking and reporting
+- Participation in environmental certification programs
+
+## Vehicle Replacement Criteria
+Know when to retire vehicles from the fleet:
+- Age over 7-8 years
+- Mileage exceeds 300,000 km
+- Repair costs exceed 50% of vehicle value in single year
+- Cumulative repairs exceed 75% of replacement cost
+- Safety concerns cannot be economically addressed
+- Reliability below acceptable standards (>3 breakdowns/year)
+- Fuel efficiency significantly worse than modern equivalents
+- Technology obsolescence (no telematics capability)
+- Appearance detracts from professional image
+- Parts availability becoming problematic
