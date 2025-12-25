@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { MessageSquare, Send, Cloud, Calculator, TrendingUp, MapPin, Clock } from 'lucide-react';
 import { post } from '../../../lib/api';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 /**
  * ChatbotPanel - Conversational AI for route planning and logistics
@@ -148,7 +150,61 @@ export function ChatbotPanel() {
                     {messages.map((message, index) => (
                         <div key={index} className={`message message-${message.role}`}>
                             <div className="message-content">
-                                <div className="message-text">{message.content}</div>
+                                <div className="message-text markdown-content">
+                                    <ReactMarkdown 
+                                        remarkPlugins={[remarkGfm]}
+                                        components={{
+                                            // Style tables
+                                            table: ({node, ...props}) => (
+                                                <table style={{ borderCollapse: 'collapse', width: '100%', marginTop: '12px', marginBottom: '12px' }} {...props} />
+                                            ),
+                                            th: ({node, ...props}) => (
+                                                <th style={{ border: '1px solid #ddd', padding: '8px', background: '#f0f0f0', textAlign: 'left' }} {...props} />
+                                            ),
+                                            td: ({node, ...props}) => (
+                                                <td style={{ border: '1px solid #ddd', padding: '8px' }} {...props} />
+                                            ),
+                                            // Style headings
+                                            h2: ({node, ...props}) => (
+                                                <h2 style={{ fontSize: '18px', fontWeight: '600', marginTop: '16px', marginBottom: '8px', color: '#1a1a1a' }} {...props} />
+                                            ),
+                                            h3: ({node, ...props}) => (
+                                                <h3 style={{ fontSize: '16px', fontWeight: '600', marginTop: '12px', marginBottom: '6px', color: '#333' }} {...props} />
+                                            ),
+                                            // Style lists
+                                            ul: ({node, ...props}) => (
+                                                <ul style={{ marginTop: '8px', marginBottom: '8px', paddingLeft: '20px' }} {...props} />
+                                            ),
+                                            ol: ({node, ...props}) => (
+                                                <ol style={{ marginTop: '8px', marginBottom: '8px', paddingLeft: '20px' }} {...props} />
+                                            ),
+                                            li: ({node, ...props}) => (
+                                                <li style={{ marginBottom: '4px', lineHeight: '1.6' }} {...props} />
+                                            ),
+                                            // Style code blocks
+                                            code: ({node, inline, ...props}) => 
+                                                inline ? (
+                                                    <code style={{ background: '#f4f4f4', padding: '2px 6px', borderRadius: '3px', fontSize: '13px' }} {...props} />
+                                                ) : (
+                                                    <code style={{ display: 'block', background: '#f4f4f4', padding: '12px', borderRadius: '6px', overflow: 'auto', fontSize: '13px' }} {...props} />
+                                                ),
+                                            // Style links
+                                            a: ({node, ...props}) => (
+                                                <a style={{ color: '#4f46e5', textDecoration: 'none' }} target="_blank" rel="noopener noreferrer" {...props} />
+                                            ),
+                                            // Style horizontal rules
+                                            hr: ({node, ...props}) => (
+                                                <hr style={{ border: 'none', borderTop: '1px solid #e0e0e0', margin: '16px 0' }} {...props} />
+                                            ),
+                                            // Style paragraphs
+                                            p: ({node, ...props}) => (
+                                                <p style={{ marginBottom: '8px', lineHeight: '1.6' }} {...props} />
+                                            )
+                                        }}
+                                    >
+                                        {message.content}
+                                    </ReactMarkdown>
+                                </div>
 
                                 {/* Show tool calls if available */}
                                 {message.toolCalls && message.toolCalls.length > 0 && (

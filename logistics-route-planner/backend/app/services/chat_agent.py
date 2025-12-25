@@ -47,7 +47,7 @@ class ChatResponse(BaseModel):
 
 
 def _get_llm():
-    """Get configured LLM (Gemini or Groq)."""
+    """Get configured LLM (Gemini or Groq) with tool calling disabled for chat agent."""
     settings = get_settings()
     
     # Try Gemini first
@@ -58,13 +58,14 @@ def _get_llm():
             temperature=0.7,
         )
     
-    # Try Groq
+    # Try Groq - explicitly disable tool calling since we handle tools manually
     if settings.groq_api_key and ChatOpenAI:
         return ChatOpenAI(
             base_url="https://api.groq.com/openai/v1",
             api_key=settings.groq_api_key,
             model=os.getenv("GROQ_MODEL", "llama3-8b-8192"),
             temperature=0.7,
+            model_kwargs={"tool_choice": "none"},  # Disable tool calling
         )
     
     raise RuntimeError("No LLM provider configured (need GEMINI_API_KEY or GROQ_API_KEY)")
@@ -196,8 +197,54 @@ def run_chat_agent(question: str, db: Session) -> ChatResponse:
     if any(word in question_lower for word in ["validate", "check", "verify", "feasible"]):
         tool_results["validation"] = "For route validation, please provide a RouteRequest with planned start time, stops, and constraints."
     
-    # Web search for current events, news, or topics not in knowledge base
-    if any(word in question_lower for word in ["search", "find", "look up", "latest", "current", "news", "what is", "who is", "when did"]):
+    # Wikipedia for encyclopedia information (check first to override web search for wikipedia queries)
+    if any(word in question_lower for word in ["wikipedia", "wikipidia", "encyclopedia"]) or \
+       ("search" in question_lower and any(term in question_lower for term in ["logistic", "supply chain", "route", "delivery", "fleet"])):
+        from app.services.agent_tools import wikipedia_search
+        try:
+            # Extract topic - handle various phrasings
+            wiki_query = question_lower
+            
+            # Remove common prefixes
+            for prefix in ["can you search wikipedia for", "can you search wikipidia for", 
+                          "search wikipedia for", "search wikipidia for", 
+                          "tell me about", "what is", "what are", "explain", "define"]:
+                if wiki_query.startswith(prefix):
+                    wiki_query = wiki_query[len(prefix):].strip()
+                    break
+            
+            # Remove question marks and clean up
+            wiki_query = wiki_query.replace("?", "").strip()
+            
+            # Handle common misspellings and broad terms
+            if "stratigies" in wiki_query or "strategies" in wiki_query or "strategy" in wiki_query:
+                if "logistic" in wiki_query:
+                    wiki_query = "logistics"
+                elif "supply" in wiki_query:
+                    wiki_query = "supply chain"
+                elif "route" in wiki_query:
+                    wiki_query = "pathfinding"
+            
+            # Extract single-word or two-word topics if still too verbose
+            words = wiki_query.split()
+            if len(words) > 3:
+                # Try to find the key noun
+                key_terms = ["logistics", "logistic", "supply", "chain", "route", "delivery", "fleet", "warehouse", "inventory"]
+                for term in key_terms:
+                    if term in wiki_query:
+                        wiki_query = term.rstrip('s') if term.endswith('s') else term
+                        if wiki_query == "logistic":
+                            wiki_query = "logistics"
+                        break
+            
+            result = wikipedia_search.invoke({"query": wiki_query})
+            tool_calls.append(ToolCall(tool="wikipedia_search", arguments={"query": wiki_query}, output=result))
+            tool_results["wikipedia"] = result
+        except Exception as e:
+            tool_results["wikipedia"] = f"Error: {e}"
+    
+    # Web search for current events, news, or topics not in knowledge base (only if wikipedia not triggered)
+    elif any(word in question_lower for word in ["latest", "current", "news", "trend", "2024", "2025", "recent"]):
         from app.services.agent_tools import web_search
         try:
             # Extract search query - remove question words
@@ -213,46 +260,61 @@ def run_chat_agent(question: str, db: Session) -> ChatResponse:
         except Exception as e:
             tool_results["web_search"] = f"Error: {e}"
     
-    # Wikipedia for encyclopedia information
-    if any(word in question_lower for word in ["wikipedia", "encyclopedia", "definition", "explain", "what are", "history of", "about"]):
-        from app.services.agent_tools import wikipedia_search
-        try:
-            # Extract topic
-            wiki_query = question_lower
-            for prefix in ["tell me about", "what is", "what are", "explain", "define", "wikipedia"]:
-                if question_lower.startswith(prefix):
-                    wiki_query = question_lower[len(prefix):].strip()
-                    break
-            
-            # Remove question marks and clean up
-            wiki_query = wiki_query.replace("?", "").strip()
-            
-            result = wikipedia_search.invoke({"query": wiki_query})
-            tool_calls.append(ToolCall(tool="wikipedia_search", arguments={"query": wiki_query}, output=result))
-            tool_results["wikipedia"] = result
-        except Exception as e:
-            tool_results["wikipedia"] = f"Error: {e}"
-    
-    # Build context for LLM
+    # Build context for LLM - format in plain text to avoid confusing LLM
     tool_context = ""
     if tool_results:
-        tool_context = "\n\n".join([
-            f"=== {key.upper()} ===\n{value}"
-            for key, value in tool_results.items()
-        ])
+        formatted_results = []
+        for key, value in tool_results.items():
+            # Parse JSON results and format as plain text
+            try:
+                import json
+                if isinstance(value, str) and value.startswith('{'):
+                    data = json.loads(value)
+                    if key == "wikipedia" and data.get("found"):
+                        # Format Wikipedia content with better structure
+                        wiki_text = f"""## Wikipedia: {data['title']}
+
+{data['summary']}
+
+**Source:** [{data['title']}]({data['url']})"""
+                        formatted_results.append(wiki_text)
+                    elif key == "web_search":
+                        results_text = "## Web Search Results\n\n"
+                        for idx, r in enumerate(data.get("results", []), 1):
+                            results_text += f"**{idx}. {r['title']}**\n{r['snippet']}\n🔗 {r['url']}\n\n"
+                        formatted_results.append(results_text)
+                    else:
+                        formatted_results.append(f"## {key.upper()}\n\n{value}")
+                else:
+                    formatted_results.append(f"## {key.upper()}\n\n{value}")
+            except:
+                formatted_results.append(f"## {key.upper()}\n\n{value}")
+        
+        tool_context = "\n\n".join(formatted_results)
     
     if rag_contexts:
-        rag_text = "\n".join([f"- ({ctx.source}) {ctx.content[:200]}..." for ctx in rag_contexts])
-        tool_context += f"\n\n=== KNOWLEDGE BASE ===\n{rag_text}"
+        rag_text = "\n".join([f"• ({ctx.source}) {ctx.content[:200]}..." for ctx in rag_contexts])
+        tool_context += f"\n\n## Knowledge Base\n\n{rag_text}"
     
     # Create prompt
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are an expert logistics route planning assistant.
 
-Answer the user's question based on the tool results and knowledge base below.
-Be concise, practical, and actionable. If you used tools, incorporate their results.
+Answer the user's question based on the information provided below.
 
-Tool Results:
+FORMATTING GUIDELINES:
+- Use clear headings (## for main sections, ### for subsections)
+- Use bullet points • for lists
+- Use numbered lists for steps or sequential items
+- Keep paragraphs short (2-3 sentences max)
+- Use **bold** for key terms
+- Add blank lines between sections for readability
+- When listing strategies, use a clear format with name, description, and key points
+
+IMPORTANT: Do not call any tools or functions. Simply answer based on the information provided.
+The information below has already been retrieved for you - use it directly in your answer.
+
+Retrieved Information:
 {tool_context}"""),
         ("human", "{question}")
     ])

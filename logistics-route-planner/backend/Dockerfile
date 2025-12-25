@@ -17,5 +17,7 @@ RUN echo "Installing backend requirements from requirements.txt:" \
 COPY app ./app
 COPY alembic.ini ./alembic.ini
 COPY alembic ./alembic
+COPY ingest_documents.py ./ingest_documents.py
+COPY data ./data
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
